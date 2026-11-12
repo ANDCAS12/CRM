@@ -60,5 +60,5 @@ export function renderLogin(onSignedIn, mode = 'signin') {
     });
     $('#toSignin').onclick = (e) => (e.preventDefault(), renderLogin(onSignedIn, 'signin'));
   }
-  setTimeout(() => el.querySelector('input')?.focus(), 30);
+  if (!el.contains(document.activeElement)) el.querySelector('input')?.focus(); // immediate: a delayed focus could move the caret while the user types
 }

@@ -77,7 +77,7 @@ export function modal(title, bodyHtml, { saveLabel = 'Save', onSave, wide = fals
       }
     };
   }
-  setTimeout(() => $('input:not([type=hidden]),select,textarea,[contenteditable]', body)?.focus(), 30); // focus first field
+  if (!root.contains(document.activeElement)) $('input:not([type=hidden]),select,textarea,[contenteditable]', body)?.focus(); // focus now, and never steal focus from a field the user is in
   return { root, body, close, setError: (m) => ($('#mErr', root).textContent = m) };
 }
 

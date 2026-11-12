@@ -18,6 +18,7 @@
 
 ### Fixed
 - Rich-text sanitiser now removes unsafe tags and attributes (found by the new XSS test).
+- Dialogs and the sign-in screen no longer move focus after opening, which could send fast typing to the wrong field (found by the repeated e2e run).
 
 ## 1.0.0
 - First MVP prototype covering build prompt stories A through M.
