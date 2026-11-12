@@ -1,5 +1,5 @@
 // Sign-in, role navigation and field restrictions through the real UI (§3, §9).
-import { api, expect, signIn, test } from './fixtures.js';
+import { api, expect, signIn, signOut, test } from './fixtures.js';
 
 test('rejects a wrong password with a generic message', async ({ page }) => {
   await page.goto('/');
@@ -51,7 +51,7 @@ test('admin invites a user who accepts with an invite code', async ({ page }) =>
   const code = await page.locator('#invCode').textContent();
   await page.getByRole('button', { name: 'Done' }).click();
   await expect(page.getByText('Pending invite', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await page.getByRole('link', { name: 'Accept an invite' }).click();
   await page.locator('#iEm').fill('pat@insightkitchen.com');
   await page.locator('#iCode').fill(code);

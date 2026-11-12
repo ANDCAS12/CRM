@@ -30,7 +30,8 @@ test('closing as lost requires a reason and competitor', async ({ page }) => {
   expect(audit).toEqual(expect.arrayContaining(['stage', 'winLossReason', 'competitors']));
 });
 
-test('board drag and drop moves a deal and records stage history', async ({ page }) => {
+test('board drag and drop moves a deal and records stage history', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'Touch browsers have no HTML drag and drop; the stage picker test covers phones');
   await signIn(page);
   await page.goto('/#deals');
   await page.locator('.dc[data-id="d_vela"]').dragTo(page.locator('.colm[data-stage="Qualified"]'));
@@ -66,4 +67,20 @@ test('GTM cannot drag a deal they do not own', async ({ page }) => {
   await signIn(page, 'gtm');
   await page.goto('/#deals');
   await expect(page.locator('.dc[data-id="d_meridian_ai"]')).toHaveAttribute('draggable', 'false');
+});
+
+test('stage picker on a card moves a deal without dragging (touch and keyboard)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/#deals');
+  await page.getByLabel('Move Vela commercial analytics assessment to stage').selectOption({ index: 1 }); // Qualified
+  await expect(page.locator('.colm[data-stage="Qualified"] .dc[data-id="d_vela"]')).toBeAttached();
+  const last = await api(page, () => window.__ikcrm.ctx.store.state.deals.find((d) => d.id === 'd_vela').stageHistory.at(-1).stage);
+  expect(last).toBe('Qualified');
+});
+
+test('stage picker still requires a reason before closing', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/#deals');
+  await page.getByLabel('Move Vela commercial analytics assessment to stage').selectOption({ index: 7 }); // Closed lost
+  await expect(page.getByRole('dialog', { name: 'Close as lost' })).toBeVisible();
 });

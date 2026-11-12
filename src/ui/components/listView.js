@@ -95,15 +95,18 @@ export function renderListView(root, cfg) {
   /* ---- bindings ---- */
   let debounce;
   $('#lvQ', root).addEventListener('input', (e) => {
+    ls.search = e.target.value; // record the text immediately so any other re-render uses it
+    ls.limit = PAGE_SIZE;
     clearTimeout(debounce);
     debounce = setTimeout(() => {
-      // debounce typing so large lists don't re-render on every key
-      ls.search = e.target.value;
-      ls.limit = PAGE_SIZE;
+      // only the redraw is debounced, so large lists don't re-render on every key
+      const typing = document.activeElement?.id === 'lvQ'; // has the user moved on (e.g. into a dialog)?
       rerender();
       const q = $('#lvQ');
-      q.focus();
-      q.setSelectionRange(q.value.length, q.value.length); // keep the caret at the end after re-render
+      if (typing && q) {
+        q.focus(); // keep the cursor in the box, but never pull focus back from elsewhere
+        q.setSelectionRange(q.value.length, q.value.length);
+      }
     }, 180);
   });
   $$('[data-view]', root).forEach(

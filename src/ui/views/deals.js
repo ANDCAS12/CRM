@@ -101,13 +101,16 @@ export function renderDeals(root) {
   $('#fBtn', root).onclick = () => ((ui.showFilters = !ui.showFilters), ctx.render());
   let debounce;
   $('#dealQ', root).addEventListener('input', (e) => {
+    ui.dealFilters.q = e.target.value; // record the text immediately so any other re-render uses it
     clearTimeout(debounce);
     debounce = setTimeout(() => {
-      ui.dealFilters.q = e.target.value; // board/table search by deal or company name
+      const typing = document.activeElement?.id === 'dealQ'; // don't pull focus back if the user moved on
       rerender();
       const q = $('#dealQ');
-      q.focus();
-      q.setSelectionRange(q.value.length, q.value.length);
+      if (typing && q) {
+        q.focus();
+        q.setSelectionRange(q.value.length, q.value.length);
+      }
     }, 180);
   });
   $$('[data-f]', root).forEach(
@@ -175,12 +178,13 @@ function renderBoard(el, deals) {
           return `<div class="dc ${overdue ? 'stale' : ''}" draggable="${editable}" data-id="${d.id}"><div class="nm" data-open="${d.id}" role="link" tabindex="0">${esc(d.name)}</div><div class="co">${esc(companyName(state(), d.companyId))}</div>
           <div class="row"><b>${money(d.amount)}</b><span class="muted">${d.expectedClose ? fmtDate(d.expectedClose) : 'No close date'}</span></div>
           <div class="row"><span class="badge">${esc(d.serviceLine || 'No service line')}</span><span class="small muted">${esc(firstName(state(), d.ownerId))} · ${timeInStage(d, now)}d</span></div>
+          ${editable ? `<select class="mv" data-move="${d.id}" aria-label="Move ${esc(d.name)} to stage">${STAGES.map((x) => `<option${x === stage ? ' selected' : ''}>${x === stage ? `Stage: ${x}` : `Move to ${x}`}</option>`).join('')}</select>` : ''}
           ${isOpen(d) ? `<div class="ns" data-ns="${d.id}" title="${editable ? 'Click to edit next step' : ''}">${overdue ? '<span class="warn">Next step overdue · </span>' : ''}${esc(d.nextStep || 'Add a next step')}${d.nextStepDate ? ` · ${fmtDate(d.nextStepDate)}` : ''}</div>` : ''}</div>`;
         })
         .join('')}</div>`;
   }).join(
     '',
-  )}</div><p class="small faint">Drag a card to move it. A brown edge means the next step is missing or overdue. Collapse columns you don’t need with ‹.</p>`;
+  )}</div><p class="small faint">Drag a card, or use its stage picker, to move it. A brown edge means the next step is missing or overdue. Collapse columns you don’t need with ‹.</p>`;
 
   $$('[data-open]', el).forEach((n) => {
     n.onclick = () => (location.hash = `deal-${n.dataset.open}`);
@@ -204,6 +208,12 @@ function renderBoard(el, deals) {
       if (deal) moveStage(deal, col.dataset.stage); // rules (B-07, B-09) live in moveStage
     });
   });
+  for (const sel of $$('[data-move]', el)) {
+    sel.onchange = () => {
+      const stage = STAGES[sel.selectedIndex]; // option text is decorated, so read the stage by position
+      moveStage(ctx.api.get('deal', sel.dataset.move), stage); // same B-07/B-09 rules as drag-and-drop
+    };
+  }
   $$('[data-ns]', el).forEach(
     (box) =>
       (box.onclick = () => {
@@ -214,7 +224,7 @@ function renderBoard(el, deals) {
         const [step, date] = box.querySelectorAll('input');
         step.focus();
         const commit = () => {
-          if (!step.value.trim() || !date.value) return toast('Next step and date are both required'), rerender(); // B-09
+          if (!step.value.trim() || !date.value) return (toast('Next step and date are both required'), rerender()); // B-09
           ctx.api.update('deal', deal.id, { nextStep: step.value.trim(), nextStepDate: date.value });
           rerender();
         };
@@ -303,7 +313,7 @@ function renderTable(el, deals) {
         const key = input.dataset.ie;
         if (key === 'stage') return moveStage(deal, input.value);
         if ((key === 'nextStep' || key === 'nextStepDate') && !input.value.trim() && isOpen(deal))
-          return toast('Open deals need a next step and a date'), rerender(); // B-09
+          return (toast('Open deals need a next step and a date'), rerender()); // B-09
         try {
           ctx.api.update('deal', deal.id, { [key]: key === 'amount' ? (input.value === '' ? '' : Number(input.value)) : input.value.trim() });
           toast('Saved');
