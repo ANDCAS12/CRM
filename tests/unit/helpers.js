@@ -7,8 +7,10 @@ import { createSeed } from '../../src/core/seed.js';
 export const NOW = new Date('2026-11-11T15:00:00');
 
 /** Builds an isolated dataset and API. `as(userId)` switches the session. */
-export function setup(seedFn = () => createSeed(NOW)) {
-  const store = createStore({ storage: createMemoryStorage(), key: 'test', seed: seedFn });
+export function setup(seedFn = () => createSeed(NOW), { persist = true } = {}) {
+  // Stress tests pass persist:false: serialising millions of records to a string on every save would double memory use.
+  const storage = persist ? createMemoryStorage() : { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+  const store = createStore({ storage, key: 'test', seed: seedFn });
   store.load();
   let user = store.state.users.find((u) => u.role === 'admin');
   const api = createApi({ store, getUser: () => user, now: () => NOW });
