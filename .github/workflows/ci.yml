@@ -18,8 +18,8 @@ jobs:
     name: Lint, format, brand
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version-file: .nvmrc, cache: npm }
       - run: npm ci
       - run: npm run lint
@@ -33,12 +33,12 @@ jobs:
       matrix:
         node: [20, 22] # supported LTS versions
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '${{ matrix.node }}', cache: npm }
       - run: npm ci
       - run: npm run test:coverage # fails below the thresholds in vitest.config.js
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: matrix.node == 22
         with: { name: coverage, path: coverage/, retention-days: 14 }
 
@@ -46,12 +46,12 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version-file: .nvmrc, cache: npm }
       - run: npm ci
       - run: npm run build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with: { name: dist, path: dist/, retention-days: 14 }
 
   e2e:
@@ -65,15 +65,15 @@ jobs:
         project: [chromium, firefox, webkit, mobile]
         shard: [1, 2] # split each browser's tests across two runners
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version-file: .nvmrc, cache: npm }
       - run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { name: dist, path: dist/ }
       - run: npx playwright install --with-deps ${{ matrix.project == 'mobile' && 'chromium' || matrix.project }}
       - run: npx playwright test --project=${{ matrix.project }} --shard=${{ matrix.shard }}/2
         env: { CI: 'true' }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with: { name: 'playwright-report-${{ matrix.project }}-${{ matrix.shard }}', path: 'playwright-report/', retention-days: 14 }
