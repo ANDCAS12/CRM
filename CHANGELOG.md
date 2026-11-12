@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0
+
+### Added
+- Hosting on GitHub Pages at https://andcas12.github.io/CRM/, deployed automatically from `main` after unit tests pass.
+- Exports and import templates download as normal browser files when the app runs outside Claude.
+
 ## 2.0.1
 
 ### Fixed

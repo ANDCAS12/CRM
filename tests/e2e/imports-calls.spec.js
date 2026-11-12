@@ -54,3 +54,14 @@ test('deal summary shows sources (local draft when Claude is unavailable)', asyn
   await expect(page.locator('.ai .srcs')).toContainText('Call: Northwind FP&A: proposal walkthrough');
   await expect(page.locator('.ai')).toContainText('Draft without Claude');
 });
+
+test('exports download as a normal file outside Claude (hosted website)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/#contacts');
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export CSV' }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^ik-contacts-\d{4}-\d{2}-\d{2}\.csv$/);
+  const text = await (await file.createReadStream()).toArray();
+  expect(Buffer.concat(text).toString()).toContain('Dana Whitfield');
+});

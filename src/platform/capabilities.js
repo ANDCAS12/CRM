@@ -1,6 +1,6 @@
 /**
  * @file Bridges to the Claude artifact runtime (Claude sampling and file downloads).
- * Outside the runtime both resolve to null and features degrade gracefully.
+ * Outside the runtime (e.g. on GitHub Pages) downloads fall back to the browser and AI summaries to a local draft.
  */
 
 /**
@@ -16,6 +16,31 @@ export function initCapabilities(win = globalThis) {
 }
 
 /**
+ * Standard browser download for hosted builds outside Claude.
+ * @param {string} filename
+ * @param {string|Blob} data
+ * @param {(msg:string)=>void} notify
+ */
+export function browserDownload(filename, data, notify, doc = globalThis.document) {
+  try {
+    const blob = data instanceof Blob ? data : new Blob([data], { type: filename.endsWith('.csv') ? 'text/csv;charset=utf-8' : 'application/octet-stream' });
+    const url = URL.createObjectURL(blob); // temporary in-memory link to the file
+    const a = doc.createElement('a');
+    a.href = url;
+    a.download = filename; // tells the browser to save rather than open it
+    doc.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000); // free the memory once the download has started
+    notify(`Downloaded ${filename}`);
+    return true;
+  } catch (e) {
+    notify(`Couldn’t download: ${e?.message || e}`);
+    return false;
+  }
+}
+
+/**
  * Offers a generated file to the viewer.
  * @param {Promise<any>} downloadsPromise
  * @param {string} filename
@@ -24,10 +49,7 @@ export function initCapabilities(win = globalThis) {
  */
 export async function saveFile(downloadsPromise, filename, data, notify) {
   const downloads = await downloadsPromise;
-  if (!downloads) {
-    notify('Downloads aren’t available in this view. Open the app in Claude to export.');
-    return false;
-  }
+  if (!downloads) return browserDownload(filename, data, notify); // regular website (e.g. GitHub Pages): use a normal download
   try {
     await downloads.save({ filename, data });
     notify(`Saved ${filename}`);
