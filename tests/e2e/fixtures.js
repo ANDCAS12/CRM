@@ -27,6 +27,13 @@ export async function signIn(page, role = 'admin') {
   await expect(page.locator('#app')).toBeVisible();
 }
 
+/** Signs out; on phone-sized screens the button lives in the side menu, so open it first. */
+export async function signOut(page) {
+  const menu = page.getByRole('button', { name: 'Open menu' });
+  if (await menu.isVisible()) await menu.click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+}
+
 /** Evaluates against the in-browser data layer (same API the UI uses). */
 export const api = (page, fn, arg) => page.evaluate(fn, arg);
 

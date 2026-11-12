@@ -1520,3 +1520,10 @@ table.t.frozen td:first-child {
 table.t td .cellin {
   min-width: 130px;
 }
+
+/* Dialogs never grow wider than the screen: wide tables scroll inside them instead (mobile import dialog fix). */
+.ov > .modal{max-width:100%;min-width:0}
+.modal .mb, .grid2 > *{min-width:0}
+
+/* "Move to" stage picker on board cards: the non-drag alternative for touch and keyboard users. */
+.dc .mv{margin-top:6px;width:100%;font-size:12px;padding:3px 5px;border:1px solid var(--line);border-radius:5px;background:var(--card);color:var(--text)}

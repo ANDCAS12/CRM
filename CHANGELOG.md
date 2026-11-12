@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.1
+
+### Fixed
+- Dialogs no longer grow wider than a phone screen; wide tables scroll inside them (the import dialog's "Finish import" button was unreachable on phones).
+- Board cards have a "Move to" stage picker, so deals can be moved on touch screens and with a keyboard (drag-and-drop doesn't work on phones).
+- Search boxes record typing immediately and no longer pull focus back after a pause, which could apply stale search text.
+- E2E: sign-out helper opens the phone menu first; drag test runs on desktop only, with a new picker test for every device.
+
 ## 2.0.0
 
 ### Added
