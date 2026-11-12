@@ -1,0 +1,12 @@
+# Weekly dependency and GitHub Actions updates, grouped to keep PR noise low.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      dev-dependencies:
+        dependency-type: development
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }

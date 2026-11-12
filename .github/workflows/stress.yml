@@ -1,0 +1,48 @@
+# Nightly heavy run: 5x data volume for performance tests and repeated e2e runs to surface flaky tests.
+name: Nightly stress
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # 06:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      scale:
+        description: Data multiplier for performance tests (1 = 1k companies, 10k contacts, 5k deals)
+        default: '5'
+      repeat:
+        description: How many times to repeat each e2e test
+        default: '5'
+
+permissions:
+  contents: read
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: npm ci
+      - run: npx vitest run tests/unit/performance.test.js
+        env: { STRESS_SCALE: '${{ inputs.scale || 5 }}' }
+
+  flaky-hunt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: npm ci && npm run build
+      - run: npx playwright install --with-deps ${{ matrix.project }}
+      - run: npx playwright test --project=${{ matrix.project }} --repeat-each=${{ inputs.repeat || 5 }} --retries=0 # no retries: we want to see flakes
+        env: { CI: 'true' }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: 'stress-report-${{ matrix.project }}', path: playwright-report/, retention-days: 14 }

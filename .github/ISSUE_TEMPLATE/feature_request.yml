@@ -1,0 +1,18 @@
+name: Feature request
+description: Propose a change. MVP scope follows the build prompt; V2/V3 items are tracked separately.
+labels: [enhancement]
+body:
+  - type: input
+    id: story
+    attributes: { label: Build prompt story ID, description: 'e.g. L-03, or "new" if not in the prompt' }
+    validations: { required: true }
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      options: [MVP, V2, V3]
+    validations: { required: true }
+  - type: textarea
+    id: need
+    attributes: { label: What should it do and for whom? }
+    validations: { required: true }

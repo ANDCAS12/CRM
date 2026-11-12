@@ -1,0 +1,79 @@
+# Runs on every push and pull request. A PR can merge only when every job is green.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true # a new push cancels the outdated run
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint, format, brand
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run check:brand # only the seven IK colour tokens
+
+  unit:
+    name: Unit tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22] # supported LTS versions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ matrix.node }}', cache: npm }
+      - run: npm ci
+      - run: npm run test:coverage # fails below the thresholds in vitest.config.js
+      - uses: actions/upload-artifact@v4
+        if: matrix.node == 22
+        with: { name: coverage, path: coverage/, retention-days: 14 }
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with: { name: dist, path: dist/, retention-days: 14 }
+
+  e2e:
+    name: E2E ${{ matrix.project }} (shard ${{ matrix.shard }}/2)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false # see every browser's result, not just the first failure
+      matrix:
+        project: [chromium, firefox, webkit, mobile]
+        shard: [1, 2] # split each browser's tests across two runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: dist, path: dist/ }
+      - run: npx playwright install --with-deps ${{ matrix.project == 'mobile' && 'chromium' || matrix.project }}
+      - run: npx playwright test --project=${{ matrix.project }} --shard=${{ matrix.shard }}/2
+        env: { CI: 'true' }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: 'playwright-report-${{ matrix.project }}-${{ matrix.shard }}', path: 'playwright-report/', retention-days: 14 }
