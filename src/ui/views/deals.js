@@ -224,7 +224,7 @@ function renderBoard(el, deals) {
         const [step, date] = box.querySelectorAll('input');
         step.focus();
         const commit = () => {
-          if (!step.value.trim() || !date.value) return toast('Next step and date are both required'), rerender(); // B-09
+          if (!step.value.trim() || !date.value) return (toast('Next step and date are both required'), rerender()); // B-09
           ctx.api.update('deal', deal.id, { nextStep: step.value.trim(), nextStepDate: date.value });
           rerender();
         };
@@ -313,7 +313,7 @@ function renderTable(el, deals) {
         const key = input.dataset.ie;
         if (key === 'stage') return moveStage(deal, input.value);
         if ((key === 'nextStep' || key === 'nextStepDate') && !input.value.trim() && isOpen(deal))
-          return toast('Open deals need a next step and a date'), rerender(); // B-09
+          return (toast('Open deals need a next step and a date'), rerender()); // B-09
         try {
           ctx.api.update('deal', deal.id, { [key]: key === 'amount' ? (input.value === '' ? '' : Number(input.value)) : input.value.trim() });
           toast('Saved');
