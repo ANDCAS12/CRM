@@ -2148,3 +2148,7 @@ table.t.frozen td.cb + td {
 .dc .co .av {
   color: var(--text);
 }
+
+.lp .row2:has(#aBtn) {
+  grid-template-columns: 1fr 1fr 1fr;
+}

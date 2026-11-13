@@ -54,7 +54,7 @@ export function renderDealRecord(root, id) {
       editable
         ? `<select class="f" id="stSel" style="margin-top:12px" aria-label="Stage">${STAGES.map((x) => `<option value="${esc(x)}"${x === deal.stage ? ' selected' : ''}>Stage: ${esc(x)}</option>`).join('')}</select>
     <div class="row2">${isOpen(deal) ? '<button class="btn block" id="wonBtn">Close won</button><button class="btn block" id="lostBtn">Close lost</button>' : `<span class="badge ${deal.stage === 'Closed won' ? '' : 'dark'}" style="justify-self:start">${esc(deal.stage)}</span><span class="small muted">${esc(deal.winLossReason || '')}</span>`}</div>
-    <div class="row2"><button class="btn sm" id="eBtn">Edit</button><button class="btn sm" id="cBtn">Clone</button></div>`
+    <div class="row2"><button class="btn sm" id="eBtn">Edit</button><button class="btn sm" id="cBtn">Clone</button><button class="btn sm" id="aBtn">${deal.archived ? 'Restore' : 'Archive'}</button></div>`
         : `<div class="badges"><span class="badge dark">${esc(deal.stage)}</span></div><p class="small faint">Read only for your role</p>`
     }`;
 
@@ -118,6 +118,7 @@ export function renderDealRecord(root, id) {
       'priority',
       'source',
       'referringPartnerId',
+      'referringContactId',
       'probability',
       'expectedStart',
       'durationMonths',
@@ -166,6 +167,11 @@ export function renderDealRecord(root, id) {
       $('#lostBtn', r)?.addEventListener('click', () => closeDealModal(deal, 'Closed lost'));
       $('#eBtn', r).onclick = () => dealForm(ctx.api.get('deal', id));
       $('#cBtn', r).onclick = () => dealForm(null, ctx.api.get('deal', id));
+      $('#aBtn', r).onclick = () => {
+        ctx.api.update('deal', id, { archived: !deal.archived }); // B-02 archive / restore
+        toast(deal.archived ? 'Deal restored' : 'Deal archived');
+        rerender();
+      };
       $$('[data-role]', r).forEach(
         (sel) => (sel.onchange = () => (ctx.api.update('dealContact', sel.dataset.role, { role: sel.value }), toast('Buying role updated'))),
       );

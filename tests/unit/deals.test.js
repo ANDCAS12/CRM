@@ -43,6 +43,7 @@ describe('filterDeals (L-02)', () => {
   it('by industry via company', () => expect(run({ industry: 'Insurance' }).sort()).toEqual(['d_bright', 'd_bright_aug']));
   it('by partner', () => expect(run({ partnerId: 'c_summit' })).toEqual(['d_summit_sub']));
   it('open only + close window', () => expect(run({ openOnly: true, closeTo: '2026-11-30' }).sort()).toEqual(['d_bright', 'd_nw_aug']));
+  it('by service line, as free text (contains)', () => expect(run({ serviceLine: 'science' }).sort()).toEqual(['d_bright_aug', 'd_meridian_bi', 'd_nw_aug']));
   it('by close year (A-04)', () => expect(run({ closeYear: '2027' }).sort()).toEqual(['d_atlas', 'd_atlas_ops', 'd_cascade', 'd_summit_sub', 'd_vela']));
   it('mine = owner or collaborator', () => expect(run({ mine: 'u_russell' })).toContain('d_nw_fpa'));
   it('created from', () => expect(run({ createdFrom: '2026-11-01' })).toEqual(expect.arrayContaining(['d_vela'])));

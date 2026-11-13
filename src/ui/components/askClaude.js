@@ -25,7 +25,7 @@ export function openAskClaude() {
     <p style="margin-top:0">${deal ? `On <b>${esc(deal.name)}</b>, the` : 'Today, the'} <b>deal summary</b> on every deal page is written by Claude from its calls, notes and documents, and lists its sources.</p>
     ${deal ? '<button class="btn pri block" id="askGoSummary">Go to this deal’s summary</button>' : '<a class="btn block" href="#deals" id="askGoDeals">Open a deal</a>'}
     <div class="card placeholder" style="margin-top:16px"><div class="cardh"><h2>Ask in plain language</h2><span class="v2">V2</span></div>
-      <input class="f" disabled placeholder="Which Staff aug deals have had no call in three weeks?" aria-label="Question for Claude (available in V2)">
+      <input class="f" disabled placeholder="Which DSaaS deals have had no call in three weeks?" aria-label="Question for Claude (available in V2)">
       <p>Every answer will cite the calls, notes and documents it used.</p></div>
     <div class="card placeholder"><div class="cardh"><h2>One-click actions</h2></div>
       <ul class="mini">${PLANNED.map(([l, sid, phase]) => `<li><span class="tx">${esc(l)}<span> · ${sid}</span></span><span class="v2">${phase}</span></li>`).join('')}</ul></div>`;

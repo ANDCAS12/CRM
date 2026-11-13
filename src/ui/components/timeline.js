@@ -20,7 +20,7 @@ export function callHtml(c, showDeal = false) {
     c.recordingUrl ? `<a href="${esc(c.recordingUrl)}" target="_blank" rel="noopener">Recording</a>` : '',
     c.transcriptUrl ? `<a href="${esc(c.transcriptUrl)}" target="_blank" rel="noopener">Transcript</a>` : '',
   ].filter(Boolean);
-  return `<div class="h">${svg('call')}<b>${esc(c.title)}</b><span class="pill">${c.source === 'fireflies' ? 'Fireflies' : 'Logged manually'}</span><span class="sp"></span>${fmtDateTime(c.date)} · ${c.durationMin || 0} min</div>
+  return `<div class="h">${svg('call')}<b>${esc(c.title)}</b><span class="pill">${{ fireflies: 'Fireflies', hubspot: 'From HubSpot' }[c.source] || 'Logged manually'}</span><span class="sp"></span>${fmtDateTime(c.date)} · ${c.durationMin || 0} min</div>
     ${c.summary ? `<p style="margin:4px 0">${esc(c.summary)}</p>` : ''}
     ${(c.actionItems || []).length ? `<div class="small"><b>Action items</b><ul style="margin:4px 0 0;padding-left:18px">${c.actionItems.map((a) => `<li>${esc(a)}</li>`).join('')}</ul></div>` : ''}
     ${links.length ? `<div class="small muted" style="margin-top:6px">${links.join(' · ')}</div>` : ''}`;

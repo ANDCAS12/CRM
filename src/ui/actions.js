@@ -63,7 +63,12 @@ export function moveStage(deal, stage) {
     return;
   }
   ctx.api.update('deal', deal.id, { stage });
-  toast(`Moved to ${stage}`);
+  // Cristina, Nov 13: partner deals move to Prospect once we meet the client; they never go to Suspect.
+  toast(
+    deal.stage === 'Partners' && stage === 'Suspect'
+      ? 'Moved to Suspect. Note: partner deals usually move to Prospect once you meet the client.'
+      : `Moved to ${stage}`,
+  );
   rerender();
 }
 
