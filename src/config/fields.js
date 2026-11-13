@@ -10,6 +10,8 @@
  */
 import {
   BILLING_MODELS,
+  DEAL_TYPES,
+  PRIORITIES,
   BUYING_ROLES,
   CONTRACT_STATUSES,
   CONTRACT_TYPES,
@@ -51,12 +53,14 @@ export function fieldDefs(type, state) {
         { k: 'ownerId', l: 'Owner', t: 'select', o: userOptions(state), req: true, g: 'Deal information' },
         { k: 'pipeline', l: 'Pipeline', t: 'select', o: opts(PIPELINES, false), req: true, g: 'Deal information' },
         { k: 'stage', l: 'Stage', t: 'select', o: opts(STAGES, false), req: true, g: 'Deal information' },
+        { k: 'dealType', l: 'Deal type', t: 'select', o: opts(DEAL_TYPES), g: 'Deal information' },
+        { k: 'priority', l: 'Priority', t: 'select', o: opts(PRIORITIES), g: 'Deal information' },
         { k: 'amount', l: 'Amount (USD, total contract value)', t: 'number', g: 'Value and timing' },
         { k: 'probability', l: 'Probability % (stage default)', t: 'number', g: 'Value and timing' },
         { k: 'expectedClose', l: 'Expected close date', t: 'date', g: 'Value and timing' },
         { k: 'expectedStart', l: 'Expected start date', t: 'date', g: 'Value and timing' },
         { k: 'durationMonths', l: 'Duration (months)', t: 'number', g: 'Value and timing' },
-        { k: 'serviceLine', l: 'Service line', t: 'select', o: opts(s.serviceLines), g: 'Deal information' },
+        { k: 'serviceLine', l: 'Service line', t: 'text', suggest: s.serviceLines, ph: 'e.g. Optimization', g: 'Deal information' },
         { k: 'source', l: 'Source', t: 'select', o: opts(SOURCES), g: 'Source' },
         {
           k: 'referringPartnerId',
@@ -71,7 +75,7 @@ export function fieldDefs(type, state) {
         { k: 'nextStep', l: 'Next step', t: 'text', full: true, g: 'Next step' },
         { k: 'nextStepDate', l: 'Next step date', t: 'date', g: 'Next step' },
         { k: 'competitors', l: 'Competitors', t: 'text', g: 'Outcome' },
-        { k: 'winLossReason', l: 'Win or loss reason', t: 'select', o: opts(s.lossReasons), g: 'Outcome' },
+        { k: 'winLossReason', l: 'Win or loss reason', t: 'text', g: 'Outcome' },
         { k: 'collaborators', l: 'Collaborators', t: 'multi', o: userOptions(state), g: 'People' },
         { k: 'folderUrl', l: 'SharePoint folder link', t: 'url', full: true, g: 'Documents' },
         { k: 'createdAt', l: 'Create date', t: 'datetime', system: true, g: 'System' },

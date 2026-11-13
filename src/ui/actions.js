@@ -2,7 +2,7 @@
  * @file User actions shared across views: forms, stage moves, inline saves, exports, AI refresh.
  * Business rules come from src/core; this file only wires them to dialogs and toasts.
  */
-import { CLOSED_STAGES, STAGE_PROBABILITY } from '../config/constants.js';
+import { CLOSED_STAGES, DEFAULT_STAGE, STAGE_DESCRIPTIONS, STAGE_PROBABILITY } from '../config/constants.js';
 import { canEdit } from '../core/permissions.js';
 import { isOpen, validateDeal } from '../core/deals.js';
 import { recordName } from '../core/lookups.js';
@@ -10,7 +10,7 @@ import { ValidationError } from '../core/errors.js';
 import { generateSummary, latestSummary } from '../ai/summary.js';
 import { saveFile } from '../platform/capabilities.js';
 import { toCSV } from '../utils/csv.js';
-import { today } from '../utils/dates.js';
+import { addDays, today } from '../utils/dates.js';
 import { esc, normalizeDomain, domainOf } from '../utils/format.js';
 import { clone } from '../utils/object.js';
 import { ctx, rerender, state } from './context.js';
@@ -26,19 +26,18 @@ export function refLink(type, id) {
 
 /* ---------------- deals ---------------- */
 
-/** Dialog that closes a deal; requires a reason and, when lost, a competitor (B-07). */
+/** Dialog that closes a deal; requires a reason in the team's own words and, when lost, a competitor (B-07). */
 export function closeDealModal(deal, stage) {
   const won = stage === 'Closed won';
-  const reasons = [['', '']].concat(state().settings.lossReasons.map((r) => [r, r]));
   modal(
     won ? 'Close as won' : 'Close as lost',
     `<p class="muted" style="margin-top:0">${esc(deal.name)}: a reason is required${won ? '' : ' and the competitor involved'}.</p>
-    <div class="grid2"><div><label class="l" for="f_winLossReason">${won ? 'Win' : 'Loss'} reason *</label>${inputHtml({ k: 'winLossReason', t: 'select', o: reasons }, deal.winLossReason)}</div>
-    <div><label class="l" for="f_competitors">Competitor involved${won ? '' : ' *'}</label>${inputHtml({ k: 'competitors', t: 'text', ph: 'None' }, deal.competitors)}</div></div>`,
+    <div class="grid2"><div class="full"><label class="l" for="f_winLossReason">${won ? 'Why we won' : 'Why we lost'} *</label><textarea class="f" id="f_winLossReason" style="min-height:70px" placeholder="${won ? 'e.g. Existing relationship and faster start' : 'e.g. Our proposal was the most expensive'}">${esc(deal.winLossReason || '')}</textarea></div>
+    <div class="full"><label class="l" for="f_competitors">Competitor involved${won ? '' : ' *'}</label>${inputHtml({ k: 'competitors', t: 'text', ph: 'None' }, deal.competitors)}</div></div>`,
     {
       saveLabel: won ? 'Close as won' : 'Close as lost',
       onSave: (body) => {
-        const winLossReason = $('#f_winLossReason', body).value;
+        const winLossReason = $('#f_winLossReason', body).value.trim(); // free text, not a picklist (Nov 13)
         const competitors = $('#f_competitors', body).value.trim();
         validateDeal({ ...deal, stage, winLossReason, competitors }); // same rule as the API-level validator
         ctx.api.update('deal', deal.id, { stage, winLossReason, competitors });
@@ -74,8 +73,8 @@ export function dealForm(existing = null, cloneFrom = null, preset = {}) {
   const defaults = {
     ownerId: ctx.user.id,
     pipeline: ui.pipeline !== 'All' ? ui.pipeline : 'Consulting projects',
-    stage: 'Lead',
-    probability: STAGE_PROBABILITY.Lead,
+    stage: DEFAULT_STAGE, // new deals start in Suspect
+    probability: STAGE_PROBABILITY[DEFAULT_STAGE],
     source: 'Inbound',
     collaborators: [],
     ...preset,
@@ -100,6 +99,9 @@ export function dealForm(existing = null, cloneFrom = null, preset = {}) {
   });
   const stage = $('#f_stage', m.body);
   const prob = $('#f_probability', m.body);
+  // Show what the chosen stage means (Cristina's definitions), under the stage picker.
+  stage?.insertAdjacentHTML('afterend', `<div class="small muted" id="stageHelp" style="margin-top:4px">${esc(STAGE_DESCRIPTIONS[stage.value] || '')}</div>`);
+  stage?.addEventListener('change', () => ($('#stageHelp', m.body).textContent = STAGE_DESCRIPTIONS[stage.value] || ''));
   if (stage && prob) stage.addEventListener('change', () => (prob.value = STAGE_PROBABILITY[stage.value])); // keep probability in sync with stage
 }
 
@@ -144,6 +146,36 @@ export function companyForm(existing = null) {
       ? `<span class="warn">Possible duplicate:</span> <a href="#company-${dup.id}">${esc(dup.name)}</a> already uses ${esc(dup.domain)}.`
       : '';
   });
+}
+
+/** Initials for avatar circles, e.g. "Cristina Frieri" -> "CV". */
+export const initials = (name) =>
+  String(name || '?')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('');
+
+/** Create a task from anywhere (E-02), optionally linked to a deal. */
+export function taskForm(preset = {}) {
+  const due = addDays(today(ctx.now()), 1);
+  const deals = [['', ''], ...ctx.api.all('deal').map((d) => [d.id, d.name])];
+  modal(
+    'Create task',
+    `${formHtml('task', { assigneeId: ctx.user.id, dueDate: due, reminderDate: due, emailReminder: true })}<div style="margin-top:12px"><label class="l" for="f_tdeal">Linked deal</label>${inputHtml({ k: 'tdeal', t: 'select', o: deals }, preset.dealId || '')}</div>`,
+    {
+      saveLabel: 'Create task',
+      onSave: (body) => {
+        const task = readForm('task', body);
+        if (!task.title) throw new ValidationError('Name the task.');
+        const dealId = $('#f_tdeal', body).value;
+        ctx.api.create('task', { ...task, done: false, refType: dealId ? 'deal' : '', refId: dealId });
+        toast('Task created');
+        rerender();
+      },
+    },
+  );
 }
 
 /** Valid email check used by forms and inline edits. */

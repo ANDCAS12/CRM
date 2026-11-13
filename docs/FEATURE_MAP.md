@@ -1,5 +1,7 @@
 # Feature map
 
+> Since 3.0.0 the design follows Cristina Frieri's Central Kitchen Build Brief (Nov 13, 2026). Items it marks V2 or V3 appear in the app with a V2/V3 tag and are not built.
+
 Each feature, the build prompt story it implements, and where it lives. "Tutorial" marks features whose design follows the two HubSpot setup tutorials supplied in v2. A tutorial feature was added **only** when the build prompt already includes it.
 
 ## Build prompt MVP stories

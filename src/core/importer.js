@@ -14,7 +14,11 @@ import {
   CLOSED_STAGES,
   CONTRACT_STATUSES,
   CONTRACT_TYPES,
+  DEAL_TYPES,
+  DEFAULT_STAGE,
+  LEGACY_PIPELINE_MAP,
   PIPELINES,
+  PRIORITIES,
   RELATIONSHIP_TYPES,
   SOURCES,
   STAGES,
@@ -25,23 +29,52 @@ import { domainOf, esc, normalizeDomain } from '../utils/format.js';
 import { PermissionError } from './errors.js';
 import { findUser } from './lookups.js';
 
-/** HubSpot default pipeline stage ids and labels mapped to IK stages (M-01). */
+/**
+ * IK's HubSpot stages carry over one to one (build brief, slide 20). Keys are lower-cased labels
+ * and internal ids, with or without the probability suffix HubSpot shows, e.g. "Proposal sent (40%)".
+ */
 export const HUBSPOT_STAGE_MAP = Object.freeze({
-  appointmentscheduled: 'Discovery',
-  'appointment scheduled': 'Discovery',
-  qualifiedtobuy: 'Qualified',
-  'qualified to buy': 'Qualified',
-  presentationscheduled: 'Solution design',
-  'presentation scheduled': 'Solution design',
-  decisionmakerboughtin: 'Proposal sent',
-  'decision maker bought-in': 'Proposal sent',
-  contractsent: 'Negotiation and contracting',
-  'contract sent': 'Negotiation and contracting',
-  closedwon: 'Closed won',
+  'on hold': 'On Hold',
+  partners: 'Partners',
+  suspect: 'Suspect',
+  prospect: 'Prospect',
+  'proposal sent': 'Proposal sent',
+  'verbal approval': 'Verbal Approval',
+  'contract sent': 'Contract Sent',
+  contractsent: 'Contract Sent',
   'closed won': 'Closed won',
-  closedlost: 'Closed lost',
+  closedwon: 'Closed won',
   'closed lost': 'Closed lost',
+  closedlost: 'Closed lost',
 });
+
+/** Maps a HubSpot stage label to a Central Kitchen stage, ignoring a trailing "(40%)". */
+export const mapHubSpotStage = (value) =>
+  HUBSPOT_STAGE_MAP[
+    String(value || '')
+      .toLowerCase()
+      .replace(/\(\s*\d+\s*%\s*\)/, '')
+      .trim()
+  ] || '';
+
+/**
+ * Splits IK's HubSpot naming convention "Company_Opp NNN_Description" into company and deal name.
+ * Names that don't follow the convention are returned unchanged.
+ */
+export function parseDealName(raw) {
+  const m = String(raw || '').match(/^(.+?)_(Opp\s*\d+)_(.+)$/i);
+  return m ? { company: m[1].trim(), name: m[3].trim(), oppRef: m[2].replace(/\s+/, ' ') } : { company: '', name: String(raw || '').trim(), oppRef: '' };
+}
+
+/** HubSpot pipelines that must not be migrated (slide 20). */
+export const SKIPPED_PIPELINES = Object.freeze(['test pipeline']);
+
+/** Reads HubSpot probability as either 0.4 or 40. */
+const toProbability = (v) => {
+  const n = toNumber(v);
+  if (n === '') return '';
+  return n <= 1 ? Math.round(n * 100) : Math.round(n);
+};
 
 /** Parses money/number cells such as "$150,000" ('' when not numeric). */
 export const toNumber = (v) => {
@@ -112,6 +145,64 @@ export function buildPatch(existing, incoming, noOverwrite = []) {
   return patch;
 }
 
+/** HubSpot ICP values ("tier_1", "Tier 1", "1") to Central Kitchen ICP tiers. */
+export const icpTierFrom = (v) => {
+  const m = String(v || '').match(/([123])/);
+  return m ? `Tier ${m[1]}` : '';
+};
+
+/** Annual revenue in USD to the company revenue bands. */
+export function revenueBandFrom(v) {
+  const n = toNumber(v);
+  if (n === '' || n <= 0) return '';
+  const bands = [
+    [10e6, '<$10M'],
+    [50e6, '$10M–$50M'],
+    [100e6, '$50M–$100M'],
+    [250e6, '$100M–$250M'],
+    [500e6, '$250M–$500M'],
+    [1e9, '$500M–$1B'],
+  ];
+  return bands.find(([max]) => n < max)?.[1] || '$1B+';
+}
+
+/** HubSpot buying-role codes and labels (lower-cased, letters only) to Central Kitchen buying roles (D-02). */
+const HUBSPOT_BUYING_ROLES = Object.freeze({
+  champion: 'Champion',
+  decisionmaker: 'Decision maker',
+  budgetholder: 'Decision maker',
+  executivesponsor: 'Decision maker',
+  influencer: 'Influencer',
+  procurement: 'Procurement',
+  legal: 'Legal',
+  legalandcompliance: 'Legal',
+});
+
+/** Tags a contact on deals named in a HubSpot "Associated Deal" cell with their buying role (D-02). */
+function tagBuyingRoles(ctx, contactId, dealNames, role) {
+  if (!role) return;
+  const buyingRole =
+    HUBSPOT_BUYING_ROLES[
+      String(role)
+        .toLowerCase()
+        .replace(/[^a-z]/g, '')
+    ]; // "DECISION_MAKER" -> "decisionmaker"
+  if (!buyingRole) return ctx.note(`Buying role “${role}” not recognised`);
+  for (const raw of String(dealNames || '')
+    .split(/[;|]/)
+    .map((x) => x.trim())
+    .filter(Boolean)) {
+    const target = parseDealName(raw).name.toLowerCase(); // accept "Company_Opp 003_Name" or the plain name
+    const deal = ctx.state.deals.find((d) => d.name.toLowerCase() === target || d.name.toLowerCase() === raw.toLowerCase());
+    if (!deal) {
+      ctx.note(`Deal “${raw}” not found for buying role`);
+      continue;
+    }
+    if (ctx.state.dealContacts.some((x) => x.dealId === deal.id && x.contactId === contactId)) continue; // already tagged
+    ctx.api.create('dealContact', { dealId: deal.id, contactId, role: buyingRole }, { system: true, persist: false }); // role lives on the deal link
+  }
+}
+
 /* ---------- row handlers ---------- */
 
 /** Creates or updates a company from row values; returns its id. */
@@ -120,14 +211,26 @@ function upsertCompany(ctx, r) {
   const domain = normalizeDomain(r.domain);
   if (!name && !domain) return '';
   const existing = (domain && ctx.idx.companyByDomain.get(domain)) || (name && ctx.idx.companyByName.get(name.toLowerCase())); // domain is the stronger key
-  const relationship =
-    pickFrom(RELATIONSHIP_TYPES, r.relationship) ||
-    (String(r.relationship || '')
-      .toLowerCase()
-      .includes('customer')
-      ? 'Client'
-      : '');
-  const data = { name, domain, industry: r.industry || '', hq: r.hq || '', employees: toNumber(r.employees), relationship };
+  // HubSpot: type (PROSPECT, PARTNER, VENDOR…) plus lifecyclestage "customer" means Client (slide 21).
+  const lifecycle = String(r.lifecycle || '').toLowerCase();
+  const relationship = lifecycle.includes('customer')
+    ? 'Client'
+    : pickFrom(RELATIONSHIP_TYPES, r.relationship) ||
+      (String(r.relationship || '')
+        .toLowerCase()
+        .includes('customer')
+        ? 'Client'
+        : '');
+  const data = {
+    name,
+    domain,
+    industry: r.industry || '',
+    hq: r.hq || [r.city, r.country].filter(Boolean).join(', '),
+    employees: toNumber(r.employees),
+    relationship,
+    icpTier: icpTierFrom(r.icp),
+    revenueBand: revenueBandFrom(r.revenue),
+  };
   if (r.industry && !ctx.state.settings.industries.includes(r.industry)) ctx.note(`Industry “${r.industry}” kept as text`);
   if (existing) {
     if (ctx.mode !== 'upsert') return existing.id; // create-only mode links to the existing company without changing it
@@ -273,46 +376,67 @@ export const PRESETS = Object.freeze({
     label: 'HubSpot deals',
     object: 'deal',
     fields: [
-      ['name', 'Deal name', ['deal name', 'name']],
-      ['stage', 'Deal stage', ['deal stage', 'stage']],
+      ['name', 'Deal name', ['deal name', 'dealname', 'name']],
+      ['stage', 'Deal stage', ['deal stage', 'dealstage', 'stage']],
       ['amount', 'Amount', ['amount']],
-      ['close', 'Close date', ['close date']],
+      ['close', 'Close date', ['close date', 'closedate']],
       ['pipeline', 'Pipeline', ['pipeline']],
-      ['owner', 'Deal owner', ['deal owner', 'owner', 'hubspot owner']],
+      ['probability', 'Probability', ['deal probability', 'hs_deal_stage_probability', 'probability']],
+      ['owner', 'Deal owner', ['deal owner', 'hubspot_owner_id', 'owner', 'hubspot owner']],
       ['companyName', 'Associated company', ['associated company', 'company', 'company name']],
-      ['created', 'Create date', ['create date', 'created date', 'created at']],
+      ['created', 'Create date', ['create date', 'createdate', 'created date', 'created at']],
       ['source', 'Source', ['original source', 'source', 'deal source']],
-      ['nextStep', 'Next step', ['next step']],
+      ['nextStep', 'Next step', ['next step', 'hs_next_step']],
+      ['wonReason', 'Closed won reason', ['closed won reason', 'closed_won_reason']],
+      ['lostReason', 'Closed lost reason', ['closed lost reason', 'closed_lost_reason']],
+      ['description', 'Deal description', ['deal description', 'description']],
+      ['dealType', 'Deal type', ['deal type', 'dealtype']],
+      ['priority', 'Priority', ['priority', 'hs_priority']],
     ],
     row(ctx, r) {
       if (!r.name) throw new Error('no deal name');
-      const key = String(r.stage || '')
-        .toLowerCase()
-        .trim();
-      let stage = HUBSPOT_STAGE_MAP[key] || pickFrom(STAGES, key);
+      if (
+        SKIPPED_PIPELINES.includes(
+          String(r.pipeline || '')
+            .toLowerCase()
+            .trim(),
+        )
+      )
+        throw new Error('Test Pipeline, not migrated'); // slide 20
+      const parsed = parseDealName(r.name); // Company_Opp NNN_Description
+      let stage = mapHubSpotStage(r.stage) || pickFrom(STAGES, r.stage);
       if (!stage) {
-        stage = 'Lead';
-        if (r.stage) ctx.note(`Stage “${r.stage}” mapped to Lead`);
+        stage = DEFAULT_STAGE;
+        if (r.stage) ctx.note(`Stage “${r.stage}” mapped to ${DEFAULT_STAGE}`);
       }
+      // HubSpot's single "Sales Pipeline" / "Deals pipeline" is split per deal: staffing language goes to Staff augmentation (assigned per deal, slide 20).
       const pl = String(r.pipeline || '');
-      const pipeline =
-        pickFrom(PIPELINES, pl) || (/aug|staff/i.test(pl) ? 'Staff augmentation' : /partner/i.test(pl) ? 'Partner-sourced' : 'Consulting projects');
+      const staffing = /data science as a service|dsaas|staff|aug|engineer|developer|analyst|contractor/i.test(`${pl} ${parsed.name} ${r.description || ''}`);
+      const pipeline = pickFrom(PIPELINES, pl) || LEGACY_PIPELINE_MAP[pl] || (staffing ? 'Data Science as a Service' : 'Consulting projects');
+      if (!pickFrom(PIPELINES, pl) && !LEGACY_PIPELINE_MAP[pl]) ctx.note(`Pipeline assigned from deal wording; check “${parsed.name}” is in ${pipeline}`);
       const owner = findUser(ctx.state, r.owner);
       if (r.owner && !owner) ctx.note(`Owner “${r.owner}” not found; assigned to you`);
       const ownerId = owner?.id || ctx.userId;
       const createdAt = createdAtFrom(r.created, ctx.now); // preserve HubSpot created date
       const open = !CLOSED_STAGES.includes(stage);
-      if (open && !r.nextStep) ctx.note(`“${r.name}” given a placeholder next step`); // B-09 needs one
+      if (open && !r.nextStep) ctx.note(`“${parsed.name}” given a placeholder next step`); // B-09 needs one
+      const reason = stage === 'Closed won' ? r.wonReason : stage === 'Closed lost' ? r.lostReason : '';
+      const typeKey = String(r.dealType || '')
+        .toLowerCase()
+        .replace(/[\s_]/g, '');
+      const dealType = typeKey.startsWith('new') ? 'New business' : typeKey.startsWith('existing') ? 'Existing business' : pickFrom(DEAL_TYPES, r.dealType);
       const rec = ctx.api.create(
         'deal',
         {
-          name: r.name,
-          companyId: upsertCompany(ctx, { companyName: r.companyName || 'Unknown company' }),
+          name: parsed.name,
+          companyId: upsertCompany(ctx, { companyName: r.companyName || parsed.company || 'Unknown company' }),
           ownerId,
           pipeline,
           stage,
+          dealType,
+          priority: pickFrom(PRIORITIES, r.priority),
           amount: toNumber(r.amount),
-          probability: STAGE_PROBABILITY[stage],
+          probability: toProbability(r.probability) === '' ? STAGE_PROBABILITY[stage] : toProbability(r.probability),
           expectedClose: toISODate(r.close),
           expectedStart: '',
           durationMonths: '',
@@ -325,19 +449,66 @@ export const PRESETS = Object.freeze({
           nextStep: r.nextStep || (open ? 'Review imported deal' : ''),
           nextStepDate: open ? addDays(today(ctx.now), 7) : '',
           competitors: '',
-          winLossReason: open ? '' : 'Imported from HubSpot',
+          winLossReason: open ? '' : reason || 'Imported from HubSpot',
           folderUrl: '',
           collaborators: [],
+          hubspotRef: parsed.oppRef,
           createdAt,
           stageHistory: [{ stage, at: createdAt, by: ownerId }],
         },
         { system: true, persist: false },
       );
       ctx.track('deal', rec.id, 'created');
+      if (r.description) {
+        const note = ctx.api.create(
+          'note',
+          { refType: 'deal', refId: rec.id, body: `<p>${esc(r.description)}</p>`, by: ownerId, createdAt },
+          { system: true, persist: false },
+        ); // description becomes the first note
+        ctx.track('note', note.id, 'created');
+      }
     },
   },
-  hsCompanies: { label: 'HubSpot companies', alias: 'companies' },
-  hsContacts: { label: 'HubSpot contacts', alias: 'contacts' },
+  hsCompanies: {
+    label: 'HubSpot companies',
+    object: 'company',
+    modes: ['create', 'upsert'],
+    fields: [
+      ['companyName', 'Company name', ['company name', 'name']],
+      ['domain', 'Company domain name', ['company domain name', 'domain', 'website url']],
+      ['relationship', 'Type', ['type']],
+      ['lifecycle', 'Lifecycle stage', ['lifecycle stage', 'lifecyclestage']],
+      ['industry', 'Industry', ['industry']],
+      ['icp', 'Ideal customer profile tier', ['ideal customer profile tier', 'hs_ideal_customer_profile', 'icp tier']],
+      ['employees', 'Number of employees', ['number of employees', 'numberofemployees']],
+      ['revenue', 'Annual revenue', ['annual revenue', 'annualrevenue']],
+      ['city', 'City', ['city']],
+      ['country', 'Country/Region', ['country/region', 'country']],
+    ],
+    row: (ctx, r) => {
+      if (!upsertCompany(ctx, r)) throw new Error('no company name or domain');
+    },
+  },
+  hsContacts: {
+    label: 'HubSpot contacts',
+    object: 'contact',
+    modes: ['create', 'upsert'],
+    fields: [
+      ['firstName', 'First name', ['first name', 'firstname']],
+      ['lastName', 'Last name', ['last name', 'lastname']],
+      ['email', 'Email', ['email']],
+      ['phone', 'Phone number', ['phone number', 'phone']],
+      ['title', 'Job title', ['job title', 'jobtitle']],
+      ['companyName', 'Associated company', ['associated company', 'company name']],
+      ['owner', 'Contact owner', ['contact owner', 'hubspot_owner_id']],
+      ['buyingRole', 'Buying role', ['buying role', 'hs_buying_role']],
+      ['deals', 'Associated deal', ['associated deal', 'associated deals']],
+    ],
+    row: (ctx, r) => {
+      const id = upsertContact(ctx, r, r.companyName ? upsertCompany(ctx, { companyName: r.companyName }) : '');
+      tagBuyingRoles(ctx, id, r.deals, r.buyingRole); // hs_buying_role moves to each deal (slide 21)
+    },
+  },
   hsNotes: {
     label: 'HubSpot notes',
     object: 'note',

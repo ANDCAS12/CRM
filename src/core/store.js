@@ -2,7 +2,10 @@
  * @file Persistence layer. The store owns the dataset and knows nothing about roles.
  * Storage is injected so tests use memory and the browser uses localStorage.
  */
-import { SCHEMA_VERSION, USER_STATUS } from '../config/constants.js';
+import { LEGACY_PIPELINE_MAP, LEGACY_STAGE_MAP, PIPELINES, SCHEMA_VERSION, STAGE_PROBABILITY, USER_STATUS } from '../config/constants.js';
+
+/** Default probabilities of the pre-Central-Kitchen stages, used to spot untouched probabilities. */
+const LEGACY_PROBABILITY = { Lead: 10, Qualified: 20, Discovery: 30, 'Solution design': 40, 'Proposal sent': 60, 'Negotiation and contracting': 80 };
 
 /** In-memory Storage-compatible adapter for tests and when localStorage is blocked. */
 export function createMemoryStorage() {
@@ -45,6 +48,22 @@ export function migrate(state) {
     delete u.active;
   }
   for (const v of state.savedViews) if (!v.objectType) v.objectType = 'deal'; // v1 views were deals-only
+  // v3 (Central Kitchen): HubSpot stage names and two pipelines.
+  for (const d of state.deals) {
+    const oldStage = d.stage;
+    if (LEGACY_STAGE_MAP[oldStage]) d.stage = LEGACY_STAGE_MAP[oldStage]; // e.g. Lead -> Suspect
+    if (d.probability === LEGACY_PROBABILITY[oldStage]) d.probability = STAGE_PROBABILITY[d.stage]; // keep hand-edited probabilities
+    if (LEGACY_PIPELINE_MAP[d.pipeline]) d.pipeline = LEGACY_PIPELINE_MAP[d.pipeline]; // Staff augmentation -> Data Science as a Service
+    if (!PIPELINES.includes(d.pipeline)) d.pipeline = 'Consulting projects'; // anything else joins the main pipeline
+    for (const h of d.stageHistory || []) if (LEGACY_STAGE_MAP[h.stage]) h.stage = LEGACY_STAGE_MAP[h.stage];
+    if (d.dealType === undefined) d.dealType = '';
+    if (d.priority === undefined) d.priority = '';
+  }
+  for (const v of state.savedViews) {
+    if (v.filters?.stage && LEGACY_STAGE_MAP[v.filters.stage]) v.filters.stage = LEGACY_STAGE_MAP[v.filters.stage];
+    if (LEGACY_PIPELINE_MAP[v.pipeline]) v.pipeline = LEGACY_PIPELINE_MAP[v.pipeline];
+    if (v.pipeline && v.pipeline !== 'All' && !PIPELINES.includes(v.pipeline)) v.pipeline = 'All';
+  }
   state.version = SCHEMA_VERSION;
   return state;
 }

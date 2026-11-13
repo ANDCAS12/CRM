@@ -61,6 +61,9 @@ export function filterDeals(state, deals, f, pipeline = 'All', now = new Date())
     if (f.stage && d.stage !== f.stage) return false;
     if (f.openOnly && !isOpen(d)) return false;
     if (f.ownerId && d.ownerId !== f.ownerId) return false;
+    if (f.mine && d.ownerId !== f.mine && !(d.collaborators || []).includes(f.mine)) return false; // "My open deals": owner or collaborator
+    if (f.closeYear && String(d.expectedClose || '').slice(0, 4) !== String(f.closeYear)) return false; // A-04 / L-02 close year
+    if (f.createdFrom && (d.createdAt || '').slice(0, 10) < f.createdFrom) return false;
     if (f.serviceLine && d.serviceLine !== f.serviceLine) return false;
     const c = companies.get(d.companyId) || {};
     if (f.industry && c.industry !== f.industry) return false;
@@ -105,6 +108,8 @@ export function dealExportRows(state, deals, now = new Date()) {
       'Next step date': d.nextStepDate || '',
       Competitors: d.competitors || '',
       'Win/loss reason': d.winLossReason || '',
+      'Deal type': d.dealType || '',
+      Priority: d.priority || '',
       'Days in stage': timeInStage(d, now),
       'Last activity': lastActivity(state, d).slice(0, 10),
     };

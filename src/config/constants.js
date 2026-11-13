@@ -1,40 +1,88 @@
 /**
- * @file Domain constants for IK CRM.
+ * @file Domain constants for Central Kitchen (IK's in-house CRM).
  * Single source of truth for picklists, stage rules and access rules,
  * so business rules never get hard-coded inside views.
  */
 
-/** Ordered deal stages (build prompt §4, Deal.stage). */
+/** Product name shown in the app (Central Kitchen build brief, slide 1). */
+export const APP_NAME = 'Central Kitchen';
+
+/**
+ * Deal stages in board order, matching IK's HubSpot pipeline one to one (build brief, slides 17 and 20).
+ * On Hold and Partners come first, as in the board mockup.
+ */
 export const STAGES = Object.freeze([
-  'Lead',
-  'Qualified',
-  'Discovery',
-  'Solution design',
+  'On Hold',
+  'Partners',
+  'Suspect',
+  'Prospect',
   'Proposal sent',
-  'Negotiation and contracting',
+  'Verbal Approval',
+  'Contract Sent',
   'Closed won',
   'Closed lost',
-  'On hold',
 ]);
 
-/** Default probability (%) per stage; editable per deal (§4 "probability: stage default, editable"). */
+/** Default probability (%) per stage; editable per deal (slide 17). */
 export const STAGE_PROBABILITY = Object.freeze({
-  Lead: 10,
-  Qualified: 20,
-  Discovery: 30,
-  'Solution design': 40,
-  'Proposal sent': 60,
-  'Negotiation and contracting': 80,
+  'On Hold': 1,
+  Partners: 1,
+  Suspect: 10,
+  Prospect: 20,
+  'Proposal sent': 40,
+  'Verbal Approval': 80,
+  'Contract Sent': 90,
   'Closed won': 100,
   'Closed lost': 0,
-  'On hold': 10,
 });
+
+/** The active selling path shown as a progress bar on the deal page (deal record mockup). */
+export const PROGRESS_STAGES = Object.freeze(['Suspect', 'Prospect', 'Proposal sent', 'Verbal Approval', 'Contract Sent']);
+
+/** Stage a new deal starts in; MGI leads land here too (K-01). */
+export const DEFAULT_STAGE = 'Suspect';
 
 /** Stages that end a deal and therefore require a win/loss reason (B-07). */
 export const CLOSED_STAGES = Object.freeze(['Closed won', 'Closed lost']);
 
-/** The three pipelines required by B-04. */
-export const PIPELINES = Object.freeze(['Consulting projects', 'Staff augmentation', 'Partner-sourced']);
+/**
+ * Two pipelines (B-04). Cristina renamed staff augmentation to "Data Science as a Service" (DSaaS) in the
+ * Nov 13 walkthrough. Partner deals sit in the Partners stage of the main pipeline.
+ */
+export const PIPELINES = Object.freeze(['Consulting projects', 'Data Science as a Service']);
+
+/** Older pipeline names mapped forward when saved data or imports use them. */
+export const LEGACY_PIPELINE_MAP = Object.freeze({
+  'Staff augmentation': 'Data Science as a Service',
+  'Partner-sourced': 'Consulting projects',
+  DSaaS: 'Data Science as a Service',
+});
+
+/** What each stage means, in Cristina's words (Nov 13 walkthrough), shown as help in the app. */
+export const STAGE_DESCRIPTIONS = Object.freeze({
+  'On Hold': 'The client changed priorities; we talk again in a few months. Not lost, kept in view (1%).',
+  Partners: 'A partner told us about a possible deal, but we have not met the client yet. Moves to Prospect once we meet.',
+  Suspect: 'We want to talk to this company, but they don’t know we exist yet.',
+  Prospect: 'First meeting held and there is a fit; we can keep talking.',
+  'Proposal sent': 'We sent a proposal.',
+  'Verbal Approval': 'The client told us they chose us.',
+  'Contract Sent': 'We sent the contract after the verbal approval.',
+  'Closed won': 'Signed.',
+  'Closed lost': 'Lost; record why in your own words.',
+});
+
+/** Deal type and priority picklists (slide 17, mapped from HubSpot dealtype and hs_priority). */
+export const DEAL_TYPES = Object.freeze(['New business', 'Existing business']);
+export const PRIORITIES = Object.freeze(['Low', 'Medium', 'High']);
+
+/** Pre-Central-Kitchen stage names, mapped forward when older saved data is loaded. */
+export const LEGACY_STAGE_MAP = Object.freeze({
+  Lead: 'Suspect',
+  Qualified: 'Prospect',
+  Discovery: 'Prospect',
+  'Solution design': 'Prospect',
+  'Negotiation and contracting': 'Contract Sent',
+});
 
 /** Deal and contact sources (B-08). */
 export const SOURCES = Object.freeze(['Inbound', 'MGI outbound', 'Referral', 'Partner', 'Event']);
@@ -74,10 +122,10 @@ export const IK_DOMAIN = 'insightkitchen.com';
 export const STORAGE_KEY = 'ikcrm.v1';
 
 /** Current data schema version, used by store migrations. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
-/** Delivery and talent only see deals in these stages (§3 table). */
-export const DELIVERY_VISIBLE_STAGES = Object.freeze(['Negotiation and contracting', 'Closed won']);
+/** Delivery and talent only see deals in contracting and won (§3 table): Verbal Approval onward. */
+export const DELIVERY_VISIBLE_STAGES = Object.freeze(['Verbal Approval', 'Contract Sent', 'Closed won']);
 
 /**
  * Fields hidden from roles without financial access (§3, F-04).

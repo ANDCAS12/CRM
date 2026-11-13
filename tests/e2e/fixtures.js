@@ -31,7 +31,13 @@ export async function signIn(page, role = 'admin') {
 export async function signOut(page) {
   const menu = page.getByRole('button', { name: 'Open menu' });
   if (await menu.isVisible()) await menu.click();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.locator('#outBtn').click(); // the sidebar button (Settings has another one)
+}
+
+/** Opens "+ Create" in the top bar and picks an item (Deal, Company, Contact, Task). */
+export async function createFromMenu(page, item) {
+  await page.locator('#createBtn').click();
+  await page.getByRole('menuitem', { name: item, exact: true }).click();
 }
 
 /** Evaluates against the in-browser data layer (same API the UI uses). */

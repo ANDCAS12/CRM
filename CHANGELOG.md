@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.0.0 — Central Kitchen
+
+Built from Cristina Frieri's Central Kitchen Build Brief (Nov 13, 2026) and her walkthrough the same day.
+
+### Changed
+- Renamed the app to **Central Kitchen**.
+- Deal stages now match IK's HubSpot pipeline one to one: On Hold (1%), Partners (1%), Suspect (10%), Prospect (20%), Proposal sent (40%), Verbal Approval (80%), Contract Sent (90%), Closed won, Closed lost. Each stage shows Cristina's definition as help.
+- Two pipelines: **Consulting projects** and **Data Science as a Service** (renamed from staff augmentation). Partner deals use the Partners stage.
+- Service line and win/loss reason are free text; service line suggests common values.
+- "Average deal age" is the mean number of days from creation to close for closed deals in view.
+- Redesigned every MVP screen to the brief's mockups: app shell with "+ Create" and "Ask Claude", Home, Deals board and table, deal, company, contact and contract records, calls inbox.
+- Admin became **Settings**, with an account section for every role.
+- Older saved data migrates automatically to the new stages and pipelines.
+
+### Added
+- Deal type (New business, Existing business) and priority (Low, Medium, High).
+- Deals summary bar (B-14), saved views as tabs (e.g. "2026 Pipeline"), quick filters, close-year filter (A-04), column totals and weighted amounts.
+- Deal page: stage progress with days in stage, Close won / Close lost buttons, summary written automatically on first visit.
+- Company relationship snapshot: working together since, deals won, open deals, contracts.
+- Calls inbox: suggested match with Confirm, inline assignment, and "Create task" for each action item.
+- HubSpot importer: parses "Company_Opp NNN_Description", skips the Test Pipeline, maps deal type, priority and won/lost reasons, turns the description into the first note, maps company lifecycle, ICP tier and revenue, and moves contact buying roles onto each deal.
+- Demo users are the real team: Russell Halper, Cristina Frieri, Rod, Alejandro Samudio, Shadi Fares, plus Andrés Castiblanco.
+- Placeholders labelled V2/V3: Placements, Ask Claude actions, weekly brief, invoices, MGI research.
+
 ## 2.1.0
 
 ### Added

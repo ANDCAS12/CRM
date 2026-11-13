@@ -1,6 +1,18 @@
 // Import engine (D-03, F-02, M-01) including HubSpot-style create-and-update and "don't overwrite".
 import { describe, expect, it } from 'vitest';
-import { buildPatch, canImport, getPreset, guessMapping, runImport, templateHeader, toNumber } from '../../src/core/importer.js';
+import {
+  buildPatch,
+  canImport,
+  getPreset,
+  guessMapping,
+  icpTierFrom,
+  mapHubSpotStage,
+  parseDealName,
+  revenueBandFrom,
+  runImport,
+  templateHeader,
+  toNumber,
+} from '../../src/core/importer.js';
 import { parseCSV } from '../../src/utils/csv.js';
 import { NOW, setup } from './helpers.js';
 
@@ -11,37 +23,101 @@ function importCsv(t, presetKey, csv, options = {}) {
   return runImport({ api: t.api, store: t.store, user: t.user, presetKey, headers, rows, mapping, options, now: NOW });
 }
 
-describe('HubSpot deals', () => {
-  it('maps stages, owners and companies, keeps created dates and reports gaps', () => {
+describe('HubSpot deals (slides 20 and 21)', () => {
+  const HEAD =
+    'dealname,dealstage,amount,closedate,pipeline,hubspot_owner_id,createdate,hs_next_step,closed_lost_reason,description,dealtype,hs_priority,hs_deal_stage_probability,Lifecycle';
+  it('maps stages one to one, parses Company_Opp NNN_Description, keeps created dates and reports gaps', () => {
     const t = setup();
     const r = importCsv(
       t,
       'hsDeals',
-      'Deal Name,Deal Stage,Amount,Close Date,Pipeline,Deal owner,Associated Company,Create Date,Lifecycle\nAcme BI rollout,presentationscheduled,"150,000",12/15/2026,Sales Pipeline,Cristina Vega,Acme Corp,03/02/2026,x\nOld,closedlost,5,2026-01-10,Sales,Nobody,Northwind Foods,2025-11-01,y\n,qualifiedtobuy,1,,,,,,',
+      `${HEAD}\nAcme Corp_Opp 003_BI rollout,Proposal sent (40%),"150,000",12/15/2026,Deals pipeline,Cristina Frieri,03/02/2026,Send pricing,,Wants a phased plan,newbusiness,HIGH,0.4,x\nNorthwind Foods_Opp 011_Old work,Closed lost,5,2026-01-10,Deals pipeline,Nobody,2025-11-01,,No budget,,existingbusiness,LOW,0,y\n,Prospect,1,,,,,,,,,,,`,
     );
-    expect(r).toMatchObject({ created: 3, skipped: ['Row 4: no deal name'], unmappedColumns: ['Lifecycle'] }); // 2 deals + new company Acme (Northwind is reused)
-    const acme = t.state.deals.find((d) => d.name === 'Acme BI rollout');
+    expect(r).toMatchObject({ skipped: ['Row 4: no deal name'], unmappedColumns: ['Lifecycle'] });
+    const acme = t.state.deals.find((d) => d.name === 'BI rollout');
     expect(acme).toMatchObject({
-      stage: 'Solution design',
+      stage: 'Proposal sent',
+      probability: 40,
       amount: 150000,
       ownerId: 'u_cristina',
       expectedClose: '2026-12-15',
-      nextStep: 'Review imported deal',
+      nextStep: 'Send pricing',
+      dealType: 'New business',
+      priority: 'High',
+      hubspotRef: 'Opp 003',
+      pipeline: 'Consulting projects',
     });
+    expect(t.state.companies.find((c) => c.id === acme.companyId).name).toBe('Acme Corp'); // company from the deal name
     expect(acme.createdAt.startsWith('2026-03-02')).toBe(true);
+    expect(t.state.notes.find((n) => n.refId === acme.id).body).toContain('Wants a phased plan'); // description is the first note
+    const old = t.state.deals.find((d) => d.name === 'Old work');
+    expect(old).toMatchObject({ stage: 'Closed lost', companyId: 'c_northwind', winLossReason: 'No budget', dealType: 'Existing business', priority: 'Low' });
     expect(r.notes).toEqual(expect.arrayContaining(['Owner “Nobody” not found; assigned to you']));
-    expect(t.state.deals.find((d) => d.name === 'Old')).toMatchObject({
-      stage: 'Closed lost',
-      companyId: 'c_northwind',
-      winLossReason: 'Imported from HubSpot',
-    });
     expect(t.state.imports[0].name).toBe('HubSpot deals 2026-11-11');
   });
-  it('maps unknown stages to Lead with a note', () => {
+  it('skips the Test Pipeline and assigns staffing deals to Data Science as a Service', () => {
+    const t = setup();
+    const r = importCsv(
+      t,
+      'hsDeals',
+      'Deal Name,Deal Stage,Pipeline\nX_Opp 1_Thing,Suspect,Test Pipeline\nY Co_Opp 2_Two data engineers,Prospect,Deals pipeline',
+    );
+    expect(r.skipped).toEqual(['Row 2: Test Pipeline, not migrated']);
+    expect(t.state.deals.at(-1)).toMatchObject({ name: 'Two data engineers', pipeline: 'Data Science as a Service' });
+  });
+  it('maps unknown stages to Suspect with a note', () => {
     const t = setup();
     const r = importCsv(t, 'hsDeals', 'Deal Name,Deal Stage\nX,weird');
-    expect(t.state.deals.at(-1).stage).toBe('Lead');
-    expect(r.notes).toContain('Stage “weird” mapped to Lead');
+    expect(t.state.deals.at(-1).stage).toBe('Suspect');
+    expect(r.notes).toContain('Stage “weird” mapped to Suspect');
+  });
+  it('helpers parse names and stages', () => {
+    expect(parseDealName('Altamira Logistics_Opp 003_Network optimization')).toEqual({
+      company: 'Altamira Logistics',
+      name: 'Network optimization',
+      oppRef: 'Opp 003',
+    });
+    expect(parseDealName('Plain deal')).toEqual({ company: '', name: 'Plain deal', oppRef: '' });
+    expect(mapHubSpotStage('Verbal Approval (80%)')).toBe('Verbal Approval');
+    expect(mapHubSpotStage('closedwon')).toBe('Closed won');
+    expect(mapHubSpotStage('appointmentscheduled')).toBe('');
+  });
+});
+
+describe('HubSpot companies and contacts (slide 21)', () => {
+  it('maps customer lifecycle to Client, ICP tier, revenue band and HQ', () => {
+    const t = setup();
+    importCsv(
+      t,
+      'hsCompanies',
+      'Company name,Company Domain Name,Type,Lifecycle Stage,Industry,hs_ideal_customer_profile,Number of Employees,Annual Revenue,City,Country/Region\nAltamira Logistics,altamira-logistics.com,PROSPECT,customer,Logistics,tier_1,2000,750000000,Monterrey,Mexico',
+    );
+    expect(t.state.companies.at(-1)).toMatchObject({
+      name: 'Altamira Logistics',
+      relationship: 'Client',
+      icpTier: 'Tier 1',
+      revenueBand: '$500M–$1B',
+      hq: 'Monterrey, Mexico',
+      employees: 2000,
+    });
+  });
+  it('moves hs_buying_role onto each associated deal', () => {
+    const t = setup();
+    const r = importCsv(
+      t,
+      'hsContacts',
+      'First Name,Last Name,Email,Associated Company,hs_buying_role,Associated Deal\nLaura,Mendez,laura@northwindfoods.com,Northwind Foods,DECISION_MAKER,Northwind Foods_Opp 001_Northwind FP&A modernization;Ghost deal\nAl,Bo,al@northwindfoods.com,,BLOCKER,',
+    );
+    const laura = t.state.contacts.find((p) => p.email === 'laura@northwindfoods.com');
+    expect(t.state.dealContacts.find((x) => x.contactId === laura.id)).toMatchObject({ dealId: 'd_nw_fpa', role: 'Decision maker' });
+    expect(r.notes).toEqual(expect.arrayContaining(['Deal “Ghost deal” not found for buying role', 'Buying role “BLOCKER” not recognised']));
+  });
+  it('helpers', () => {
+    expect(icpTierFrom('tier_2')).toBe('Tier 2');
+    expect(icpTierFrom('')).toBe('');
+    expect(revenueBandFrom(5e6)).toBe('<$10M');
+    expect(revenueBandFrom(2e9)).toBe('$1B+');
+    expect(revenueBandFrom('')).toBe('');
   });
 });
 
@@ -144,6 +220,7 @@ describe('importer rules', () => {
     expect(buildPatch({ a: 'x', b: '' }, { a: 'y', b: 'z', c: '' }, ['a'])).toEqual({ b: 'z' });
     expect(templateHeader(getPreset('hsTasks'))[0]).toBe('Task Title');
     expect(getPreset('hsContacts').label).toBe('HubSpot contacts');
+    expect(getPreset('hsCompanies').fields.length).toBeGreaterThan(5);
     expect(() => getPreset('nope')).toThrow();
   });
 });

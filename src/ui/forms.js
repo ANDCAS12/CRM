@@ -25,7 +25,8 @@ export function inputHtml(f, value, disabled = false) {
   if (f.t === 'check') return `<label class="chk"><input type="checkbox" id="${id}" name="${f.k}"${value ? ' checked' : ''}${dis}> ${esc(f.l)}</label>`;
   if (f.t === 'textarea') return `<textarea class="f" id="${id}" name="${f.k}"${dis}>${esc(value)}</textarea>`;
   const type = { number: 'number', date: 'date', url: 'url', email: 'email' }[f.t] || 'text';
-  return `<input class="f" type="${type}" id="${id}" name="${f.k}" value="${esc(value)}"${f.ph ? ` placeholder="${esc(f.ph)}"` : ''}${type === 'number' ? ' step="any"' : ''}${dis}${req}>`;
+  const list = f.suggest?.length ? `<datalist id="${id}_list">${f.suggest.map((x) => `<option value="${esc(x)}"></option>`).join('')}</datalist>` : ''; // free text with suggestions
+  return `<input class="f" type="${type}" id="${id}" name="${f.k}" value="${esc(value)}"${f.ph ? ` placeholder="${esc(f.ph)}"` : ''}${list ? ` list="${id}_list"` : ''}${type === 'number' ? ' step="any"' : ''}${dis}${req}>${list}`;
 }
 
 /**
