@@ -1,6 +1,6 @@
-# IK CRM
+# Central Kitchen
 
-Pipeline and relationship CRM for Insight Kitchen, replacing HubSpot. This repository is the MVP prototype: a single-page app with an access-controlled data layer, built so the business rules can move unchanged to the production stack (Next.js, PostgreSQL, Auth.js) in the build prompt.
+Insight Kitchen's in-house CRM, replacing HubSpot: pipeline, relationships and contracts. This repository is the MVP prototype: a single-page app with an access-controlled data layer, built so the business rules can move unchanged to the production stack (Next.js, PostgreSQL, Auth.js) in the build prompt.
 
 [![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
 
@@ -20,7 +20,7 @@ npm run build     # writes dist/index.html (one self-contained file)
 npm run serve     # http://localhost:4173
 ```
 
-Sign in with a demo account (password `demo`): Russell (Admin), Cristina (GTM), Rod (Delivery and talent) or Alejandro (Finance). Switching between them is the fastest way to check role restrictions.
+Sign in with a demo account (password `demo`): Russell Halper or Andrés Castiblanco (Admin), Cristina Frieri or Shadi Fares (GTM), Rod (Delivery and talent) or Alejandro Samudio (Finance). Switching between them is the fastest way to check role restrictions.
 
 Add `?seed=large` to the URL to load 1,000 companies, 10,000 contacts and 5,000 deals in memory for manual load testing.
 
@@ -40,6 +40,10 @@ Add `?seed=large` to the URL to load 1,000 companies, 10,000 contacts and 5,000 
 | `npm run test:all` | Everything CI runs, in order |
 
 First e2e run: `npx playwright install chromium` (CI installs Chromium, Firefox and WebKit).
+
+## Design source
+
+Screens follow Cristina Frieri's *Central Kitchen Build Brief* (Nov 13, 2026) and her walkthrough of it the same day. Features the brief marks V2 or V3 show a **V2**/**V3** tag in the app and are not built yet.
 
 ## What's in the MVP
 

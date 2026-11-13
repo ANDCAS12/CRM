@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { dealExportRows, filterDeals, isOpen, lastActivity, nextStepOverdue, timeInStage, validateDeal, weighted } from '../../src/core/deals.js';
 import { NOW, setup } from './helpers.js';
 
-const base = { name: 'X', companyId: 'c', stage: 'Lead', nextStep: 'Call', nextStepDate: '2026-12-01' };
+const base = { name: 'X', companyId: 'c', stage: 'Suspect', nextStep: 'Call', nextStepDate: '2026-12-01' };
 
 describe('validateDeal (B-07, B-09)', () => {
   it('accepts a complete open deal', () => expect(() => validateDeal(base)).not.toThrow());
@@ -22,7 +22,7 @@ describe('deal math', () => {
   it('weights by probability', () => expect(weighted({ amount: 100000, probability: 60 })).toBe(60000));
   it('treats On hold as open', () => expect(isOpen({ stage: 'On hold' })).toBe(true));
   it('flags overdue next steps', () => {
-    expect(nextStepOverdue({ stage: 'Lead', nextStepDate: '2026-11-01' }, NOW)).toBe(true);
+    expect(nextStepOverdue({ stage: 'Suspect', nextStepDate: '2026-11-01' }, NOW)).toBe(true);
     expect(nextStepOverdue({ stage: 'Closed won', nextStepDate: '' }, NOW)).toBe(false);
   });
   it('time in stage and last activity', () => {
@@ -43,6 +43,9 @@ describe('filterDeals (L-02)', () => {
   it('by industry via company', () => expect(run({ industry: 'Insurance' }).sort()).toEqual(['d_bright', 'd_bright_aug']));
   it('by partner', () => expect(run({ partnerId: 'c_summit' })).toEqual(['d_summit_sub']));
   it('open only + close window', () => expect(run({ openOnly: true, closeTo: '2026-11-30' }).sort()).toEqual(['d_bright', 'd_nw_aug']));
+  it('by close year (A-04)', () => expect(run({ closeYear: '2027' }).sort()).toEqual(['d_atlas', 'd_atlas_ops', 'd_cascade', 'd_summit_sub', 'd_vela']));
+  it('mine = owner or collaborator', () => expect(run({ mine: 'u_russell' })).toContain('d_nw_fpa'));
+  it('created from', () => expect(run({ createdFrom: '2026-11-01' })).toEqual(expect.arrayContaining(['d_vela'])));
   it('stale activity', () => expect(run({ activity: 'stale' })).not.toContain('d_nw_fpa'));
   it('export rows have the expected columns', () => {
     const [row] = dealExportRows(t.state, all.slice(0, 1), NOW);

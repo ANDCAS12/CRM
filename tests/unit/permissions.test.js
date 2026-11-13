@@ -31,7 +31,7 @@ describe('record visibility', () => {
     const t = setup();
     t.as('u_rod');
     const stages = new Set(t.api.all('deal').map((d) => d.stage));
-    expect([...stages].sort()).toEqual(['Closed won', 'Negotiation and contracting']);
+    expect([...stages].sort()).toEqual(['Closed won', 'Contract Sent', 'Verbal Approval']);
     expect(t.api.get('deal', 'd_cascade')).toBeNull();
   });
   it('signed-out users see nothing', () => expect(canSeeRecord(null, 'deal', {})).toBe(false));

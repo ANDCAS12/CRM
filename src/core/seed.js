@@ -2,13 +2,24 @@
  * @file Demo dataset (§9 "runs with seed data") and a large generator for stress tests.
  * All dates are relative to `now` so the demo always looks current.
  */
-import { IK_DOMAIN, SCHEMA_VERSION, STAGES, STAGE_PROBABILITY, PIPELINES, SOURCES, USER_STATUS } from '../config/constants.js';
+import {
+  DEAL_TYPES,
+  IK_DOMAIN,
+  PIPELINES,
+  PRIORITIES,
+  PROGRESS_STAGES,
+  SCHEMA_VERSION,
+  SOURCES,
+  STAGES,
+  STAGE_PROBABILITY,
+  USER_STATUS,
+} from '../config/constants.js';
 import { addDays, daysAgoISO, today } from '../utils/dates.js';
 import { uid } from '../utils/object.js';
 
 /** Picklists IK will replace with its own lists (§10). */
 export const DEFAULT_SETTINGS = Object.freeze({
-  serviceLines: ['Data & analytics strategy', 'BI & reporting', 'Data engineering', 'AI & automation', 'Staff augmentation'],
+  serviceLines: ['Optimization', 'AI roadmap', 'Automation', 'Analytics', 'Data engineering', 'Data science as a service'],
   lossReasons: ['Price', 'Timing', 'Chose competitor', 'No budget', 'Went in-house', 'No decision', 'Existing relationship', 'Scope fit'],
   industries: [
     'Financial services',
@@ -34,20 +45,28 @@ export function createSeed(now = new Date()) {
   const D = (n) => addDays(T, n); // date n days from today
   const ago = (n) => daysAgoISO(n, now); // timestamp n days ago
 
+  /** Demo user; email is the first name without accents, e.g. "Andrés" -> andres@. */
   const user = (id, name, role) => ({
     id,
     name,
-    email: `${name.split(' ')[0].toLowerCase()}@${IK_DOMAIN}`,
+    email: `${name
+      .split(' ')[0]
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()}@${IK_DOMAIN}`,
     role,
     status: USER_STATUS.ACTIVE,
     demo: true,
     createdAt: ago(300),
   });
+  // The five people with access today (Nov 13 walkthrough), plus Andrés, who builds Central Kitchen.
   const users = [
-    user('u_russell', 'Russell Grant', 'admin'),
-    user('u_cristina', 'Cristina Vega', 'gtm'),
-    user('u_rod', 'Rod Mendez', 'delivery'),
+    user('u_russell', 'Russell Halper', 'admin'),
+    user('u_cristina', 'Cristina Frieri', 'gtm'),
+    user('u_rod', 'Rod', 'delivery'),
     user('u_alejandro', 'Alejandro Samudio', 'finance'),
+    user('u_shadi', 'Shadi Fares', 'gtm'),
+    user('u_andres', 'Andrés Castiblanco', 'admin'),
   ];
 
   // Company factory: keeps the seed list readable.
@@ -217,20 +236,18 @@ export function createSeed(now = new Date()) {
     ct('p_omar', 'Omar Haddad', 'Head of Commercial Analytics', 'Director', 'Commercial', 'c_vela', 'ohaddad@velapharma.com'),
   ];
 
-  /** Deal factory that also fabricates a believable stage history. */
+  /** Deal factory that also fabricates a believable stage history along the selling path. */
   const dl = (id, name, companyId, ownerId, pipeline, stage, amount, close, serviceLine, source, x = {}) => {
-    const order = STAGES.slice(0, 6); // linear stages a deal walks through
-    let idx = order.indexOf(stage);
-    if (stage === 'Closed won') idx = 6;
-    if (stage === 'Closed lost' || stage === 'On hold') idx = Math.max(2, x.reach || 2);
     const start = x.age || 60;
-    const steps = Math.min(idx, order.length - 1) + 1;
+    const reached = stage === 'Closed won' ? PROGRESS_STAGES.length - 1 : PROGRESS_STAGES.indexOf(stage); // last path stage passed through
+    const pathEnd = reached >= 0 ? reached : stage === 'Closed lost' ? Math.max(1, x.reach || 1) : -1; // On Hold / Partners have no path
     const stageHistory = [];
-    for (let i = 0; i < steps; i++) {
-      const daysAgo = Math.round(start - ((start - (x.inStage || 8)) * i) / Math.max(1, steps - 1)); // evenly spaced moves
-      stageHistory.push({ stage: order[Math.min(i, 5)], at: ago(daysAgo), by: ownerId });
+    if (pathEnd < 0) stageHistory.push({ stage, at: ago(start), by: ownerId });
+    for (let i = 0; i <= pathEnd; i++) {
+      const daysAgo = Math.round(start - ((start - (x.inStage || 8)) * i) / Math.max(1, pathEnd)); // evenly spaced moves
+      stageHistory.push({ stage: PROGRESS_STAGES[i], at: ago(daysAgo), by: ownerId });
     }
-    if (['Closed won', 'Closed lost', 'On hold'].includes(stage)) stageHistory.push({ stage, at: ago(x.inStage || 5), by: ownerId });
+    if (CLOSED.includes(stage)) stageHistory.push({ stage, at: ago(x.inStage || 5), by: ownerId });
     return {
       id,
       name,
@@ -241,6 +258,8 @@ export function createSeed(now = new Date()) {
       stage,
       amount,
       probability: STAGE_PROBABILITY[stage],
+      dealType: x.type || DEAL_TYPES[0],
+      priority: x.priority || PRIORITIES[1],
       expectedClose: close,
       expectedStart: x.start || addDays(close, 21),
       durationMonths: x.dur || 6,
@@ -261,161 +280,114 @@ export function createSeed(now = new Date()) {
       createdBy: ownerId,
     };
   };
+  const CLOSED = ['Closed won', 'Closed lost'];
+  const CP = 'Consulting projects';
+  const SA = 'Data Science as a Service';
   const deals = [
-    dl(
-      'd_nw_fpa',
-      'Northwind FP&A modernization',
-      'c_northwind',
-      'u_cristina',
-      'Consulting projects',
-      'Proposal sent',
-      420000,
-      D(24),
-      'Data & analytics strategy',
-      'Referral',
-      {
-        pc: 'p_marco',
-        dm: 'p_dana',
-        ch: 'p_marco',
-        ns: 'Walk Dana through pricing options',
-        nsd: D(2),
-        comp: 'Deloitte',
-        inStage: 9,
-        partner: 'c_harbor',
-        dur: 7,
-        collab: ['u_russell'],
-      },
-    ),
-    dl(
-      'd_nw_aug',
-      'Northwind data engineers (3)',
-      'c_northwind',
-      'u_cristina',
-      'Staff augmentation',
-      'Negotiation and contracting',
-      310000,
-      D(12),
-      'Staff augmentation',
-      'Referral',
-      { pc: 'p_marco', dm: 'p_dana', ns: 'Send redlined SOW back to procurement', nsd: D(1), inStage: 6, dur: 9 },
-    ),
-    dl(
-      'd_cascade',
-      'Cascade merchandising analytics',
-      'c_cascade',
-      'u_cristina',
-      'Consulting projects',
-      'Discovery',
-      260000,
-      D(55),
-      'BI & reporting',
-      'MGI outbound',
-      { pc: 'p_priya', dm: 'p_james', ch: 'p_priya', ns: 'Second discovery with merchandising leads', nsd: D(4), inStage: 12 },
-    ),
-    dl(
-      'd_meridian_ai',
-      'Meridian claims triage automation',
-      'c_meridian',
-      'u_russell',
-      'Consulting projects',
-      'Solution design',
-      540000,
-      D(40),
-      'AI & automation',
-      'Inbound',
-      { pc: 'p_sam', dm: 'p_helen', ch: 'p_sam', ns: 'Architecture review with Helen', nsd: D(6), inStage: 15, comp: 'Accenture' },
-    ),
-    dl(
-      'd_meridian_bi',
-      'Meridian BI managed team',
-      'c_meridian',
-      'u_russell',
-      'Staff augmentation',
-      'Closed won',
-      480000,
-      D(-20),
-      'Staff augmentation',
-      'Inbound',
-      { pc: 'p_sam', dm: 'p_helen', wl: 'Existing relationship', inStage: 20, dur: 12, start: D(-10) },
-    ),
-    dl('d_atlas', 'Atlas network cost model', 'c_atlas', 'u_cristina', 'Partner-sourced', 'Qualified', 180000, D(70), 'Data & analytics strategy', 'Partner', {
+    dl('d_nw_fpa', 'Northwind FP&A modernization', 'c_northwind', 'u_cristina', CP, 'Proposal sent', 420000, D(24), 'Optimization', 'Referral', {
+      pc: 'p_marco',
+      dm: 'p_dana',
+      ch: 'p_marco',
+      ns: 'Walk Dana through pricing options',
+      nsd: D(2),
+      comp: 'Deloitte',
+      inStage: 9,
+      partner: 'c_harbor',
+      dur: 7,
+      collab: ['u_russell'],
+      type: 'Existing business',
+      priority: 'High',
+    }),
+    dl('d_nw_aug', 'Northwind data engineers (3)', 'c_northwind', 'u_cristina', SA, 'Contract Sent', 310000, D(12), 'Data science as a service', 'Referral', {
+      pc: 'p_marco',
+      dm: 'p_dana',
+      ns: 'Send redlined SOW back to procurement',
+      nsd: D(1),
+      inStage: 6,
+      dur: 9,
+      type: 'Existing business',
+      priority: 'High',
+    }),
+    dl('d_cascade', 'Cascade merchandising analytics', 'c_cascade', 'u_cristina', CP, 'Prospect', 260000, D(55), 'Analytics', 'MGI outbound', {
+      pc: 'p_priya',
+      dm: 'p_james',
+      ch: 'p_priya',
+      ns: 'Second discovery with merchandising leads',
+      nsd: D(4),
+      inStage: 12,
+    }),
+    dl('d_meridian_ai', 'Meridian claims triage automation', 'c_meridian', 'u_russell', CP, 'Proposal sent', 540000, D(40), 'Automation', 'Inbound', {
+      pc: 'p_sam',
+      dm: 'p_helen',
+      ch: 'p_sam',
+      ns: 'Architecture review with Helen',
+      nsd: D(6),
+      inStage: 15,
+      comp: 'Accenture',
+      type: 'Existing business',
+      priority: 'High',
+    }),
+    dl('d_meridian_bi', 'Meridian BI managed team', 'c_meridian', 'u_russell', SA, 'Closed won', 480000, D(-20), 'Data science as a service', 'Inbound', {
+      pc: 'p_sam',
+      dm: 'p_helen',
+      wl: 'Existing relationship',
+      inStage: 20,
+      dur: 12,
+      start: D(-10),
+      type: 'Existing business',
+    }),
+    dl('d_atlas', 'Atlas network cost model', 'c_atlas', 'u_cristina', CP, 'Partners', 180000, D(70), 'Optimization', 'Partner', {
       partner: 'c_harbor',
       pc: 'p_ava',
       dm: 'p_ava',
       ns: 'Intro call with Tom and Ava',
       nsd: D(-2),
-      inStage: 18,
+      age: 18,
     }),
-    dl(
-      'd_bright',
-      'Brightline pricing data platform',
-      'c_brightline',
-      'u_russell',
-      'Consulting projects',
-      'Negotiation and contracting',
-      350000,
-      D(18),
-      'Data engineering',
-      'Referral',
-      { pc: 'p_raj', dm: 'p_raj', ns: 'Confirm start date and staffing plan', nsd: D(3), inStage: 5 },
-    ),
-    dl(
-      'd_summit_sub',
-      'Summit subcontract: retail forecasting',
-      'c_cascade',
-      'u_russell',
-      'Partner-sourced',
-      'Lead',
-      90000,
-      D(85),
-      'AI & automation',
-      'Partner',
-      { partner: 'c_summit', ns: 'Scope call with Nina', nsd: D(9), inStage: 4 },
-    ),
-    dl(
-      'd_vela',
-      'Vela commercial analytics assessment',
-      'c_vela',
-      'u_cristina',
-      'Consulting projects',
-      'Lead',
-      120000,
-      D(95),
-      'BI & reporting',
-      'MGI outbound',
-      { pc: 'p_omar', ns: 'Qualify budget and timing', nsd: D(5), inStage: 3, age: 10 },
-    ),
-    dl(
-      'd_pioneer',
-      'Pioneer plant analytics phase 2',
-      'c_pioneer',
-      'u_cristina',
-      'Consulting projects',
-      'Closed lost',
-      220000,
-      D(-35),
-      'Data engineering',
-      'Inbound',
-      { wl: 'No budget', comp: 'In-house team', inStage: 30, reach: 4 },
-    ),
-    dl(
-      'd_bright_aug',
-      'Brightline BI developer',
-      'c_brightline',
-      'u_russell',
-      'Staff augmentation',
-      'Qualified',
-      95000,
-      D(30),
-      'Staff augmentation',
-      'Referral',
-      { pc: 'p_raj', ns: 'Share two candidate profiles', nsd: D(0), inStage: 7 },
-    ),
-    dl('d_atlas_ops', 'Atlas ops dashboard sprint', 'c_atlas', 'u_cristina', 'Partner-sourced', 'On hold', 75000, D(110), 'BI & reporting', 'Partner', {
+    dl('d_bright', 'Brightline pricing data platform', 'c_brightline', 'u_russell', CP, 'Verbal Approval', 350000, D(18), 'Data engineering', 'Referral', {
+      pc: 'p_raj',
+      dm: 'p_raj',
+      ns: 'Confirm start date and staffing plan',
+      nsd: D(3),
+      inStage: 5,
+      type: 'Existing business',
+      priority: 'High',
+    }),
+    dl('d_summit_sub', 'Summit subcontract: retail forecasting', 'c_cascade', 'u_russell', CP, 'Partners', 90000, D(85), 'Automation', 'Partner', {
+      partner: 'c_summit',
+      ns: 'Scope call with Nina',
+      nsd: D(9),
+      age: 4,
+      priority: 'Low',
+    }),
+    dl('d_vela', 'Vela commercial analytics assessment', 'c_vela', 'u_cristina', CP, 'Suspect', 120000, D(95), 'Analytics', 'MGI outbound', {
+      pc: 'p_omar',
+      ns: 'Qualify budget and timing',
+      nsd: D(5),
+      inStage: 3,
+      age: 10,
+    }),
+    dl('d_pioneer', 'Pioneer plant analytics phase 2', 'c_pioneer', 'u_cristina', CP, 'Closed lost', 220000, D(-35), 'Data engineering', 'Inbound', {
+      wl: 'No budget',
+      comp: 'In-house team',
+      inStage: 30,
+      reach: 2,
+      type: 'Existing business',
+      priority: 'Low',
+    }),
+    dl('d_bright_aug', 'Brightline BI developer', 'c_brightline', 'u_russell', SA, 'Prospect', 95000, D(30), 'Data science as a service', 'Referral', {
+      pc: 'p_raj',
+      ns: 'Share two candidate profiles',
+      nsd: D(0),
+      inStage: 7,
+      type: 'Existing business',
+    }),
+    dl('d_atlas_ops', 'Atlas ops dashboard sprint', 'c_atlas', 'u_cristina', CP, 'On Hold', 75000, D(110), 'Analytics', 'Partner', {
       partner: 'c_harbor',
       ns: 'Check back after budget cycle',
       nsd: D(45),
-      inStage: 25,
+      age: 25,
+      priority: 'Low',
     }),
   ];
 
@@ -470,7 +442,7 @@ export function createSeed(now = new Date()) {
     totalValue,
     billingModel,
     paymentTerms,
-    ikSignatory: 'Russell Grant',
+    ikSignatory: 'Russell Halper',
     clientSignatory,
     renewalOwnerId,
     fileUrl: x.file || '',
@@ -707,6 +679,42 @@ export function createSeed(now = new Date()) {
     });
 
   const savedViews = [
+    {
+      id: 'sv_6',
+      objectType: 'deal',
+      name: `${T.slice(0, 4)} Pipeline`,
+      filters: { closeYear: T.slice(0, 4) },
+      mode: 'board',
+      pipeline: 'Consulting projects',
+      ownerId: 'u_cristina',
+      shared: true,
+    },
+    {
+      id: 'sv_3',
+      objectType: 'deal',
+      name: 'My open deals',
+      filters: { openOnly: true, mine: true },
+      mode: 'board',
+      pipeline: 'All',
+      ownerId: 'u_cristina',
+      shared: true,
+    },
+    {
+      id: 'sv_4',
+      objectType: 'company',
+      name: 'Clients',
+      query: { filters: [{ field: 'relationship', op: 'is', value: 'Client' }] },
+      ownerId: 'u_cristina',
+      shared: true,
+    },
+    {
+      id: 'sv_5',
+      objectType: 'company',
+      name: 'Partners',
+      query: { filters: [{ field: 'relationship', op: 'is', value: 'Partner' }] },
+      ownerId: 'u_cristina',
+      shared: true,
+    },
     {
       id: 'sv_1',
       objectType: 'deal',

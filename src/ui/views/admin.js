@@ -4,11 +4,13 @@
  */
 import { COLLECTIONS, LABELS, ROLES, USER_STATUS } from '../../config/constants.js';
 import { PRESETS } from '../../core/importer.js';
+import { isAdmin } from '../../core/permissions.js';
 import { randomToken } from '../../core/auth.js';
 import { userName, firstName } from '../../core/lookups.js';
 import { esc, fmtDateTime, truncate } from '../../utils/format.js';
 import { saveFile } from '../../platform/capabilities.js';
 import { exportRows, refLink } from '../actions.js';
+import { toggleTheme } from '../theme.js';
 import { ctx, rerender, state } from '../context.js';
 import { $, $$, confirmDialog, modal, toast } from '../dom.js';
 import { inputHtml } from '../forms.js';
@@ -23,9 +25,17 @@ const TABS = [
 ];
 
 export function renderAdmin(root) {
+  const admin = isAdmin(ctx.user);
   const tab = ctx.ui.adminTab;
-  root.innerHTML = `<div class="pagehead"><div><h1>Admin</h1><div class="sub">Users, audit log, imports, backups and integrations</div></div></div>
-    <div class="tabs" role="tablist">${TABS.map(([k, l]) => `<button role="tab" data-at="${k}" class="${tab === k ? 'on' : ''}" aria-selected="${tab === k}">${l}</button>`).join('')}</div><div id="adm"></div>`;
+  // Everyone sees their account; only admins see users, audit log, imports, backups and integrations (§3).
+  root.innerHTML = `<div class="pagehead"><h1>Settings</h1></div>
+    <div class="card" style="max-width:760px;margin-bottom:16px"><div class="cardh"><h2>Your account</h2></div>
+      <dl class="kv"><dt>Name</dt><dd>${esc(ctx.user.name)}</dd><dt>Email</dt><dd>${esc(ctx.user.email)}</dd><dt>Role</dt><dd>${esc(ROLES[ctx.user.role])}</dd></dl>
+      <div style="display:flex;gap:8px;margin-top:12px"><button class="btn" id="setTheme">Switch light or dark</button><button class="btn" id="setOut">Sign out</button></div></div>
+    ${admin ? `<div class="tabs" role="tablist">${TABS.map(([k, l]) => `<button role="tab" data-at="${k}" class="${tab === k ? 'on' : ''}" aria-selected="${tab === k}">${l}</button>`).join('')}</div><div id="adm"></div>` : ''}`;
+  $('#setTheme', root).onclick = () => toggleTheme();
+  $('#setOut', root).onclick = () => ctx.signOut();
+  if (!admin) return;
   $$('[data-at]', root).forEach((b) => (b.onclick = () => ((ctx.ui.adminTab = b.dataset.at), ctx.render())));
   ({ users, audit, import: imports, data, int: integrations })[tab]($('#adm', root));
 }

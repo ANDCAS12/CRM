@@ -9,13 +9,19 @@ test('rejects a wrong password with a generic message', async ({ page }) => {
   await expect(page.getByRole('alert')).toHaveText('That email and password don’t match.');
 });
 
-test('Finance sees contract values and cannot edit', async ({ page }) => {
+test('the app is called Central Kitchen and lists the real team', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Sign in to Central Kitchen' })).toBeVisible();
+  for (const name of ['Russell Halper', 'Cristina Frieri', 'Rod', 'Alejandro Samudio', 'Shadi Fares']) await expect(page.locator('.demo')).toContainText(name);
+});
+
+test('Finance sees contract values and cannot create anything', async ({ page }) => {
   await signIn(page, 'finance');
   await expect(page.getByRole('link', { name: 'Calls' })).toHaveCount(0); // no Fireflies inbox
   await page.goto('/#contracts');
   await expect(page.getByRole('cell', { name: '$310,000' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Create contract' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Create deal' })).toBeHidden();
+  await expect(page.locator('#createBtn')).toBeHidden();
 });
 
 test('GTM cannot read contract values in the UI or the data layer', async ({ page }) => {
@@ -27,18 +33,20 @@ test('GTM cannot read contract values in the UI or the data layer', async ({ pag
   expect(leaked).toBe(false);
 });
 
-test('Delivery only sees deals in contracting or won', async ({ page }) => {
+test('Delivery only sees deals from Verbal Approval onward', async ({ page }) => {
   await signIn(page, 'delivery');
   const stages = await api(page, () => [...new Set(window.__ikcrm.ctx.api.all('deal').map((d) => d.stage))].sort());
-  expect(stages).toEqual(['Closed won', 'Negotiation and contracting']);
+  expect(stages).toEqual(['Closed won', 'Contract Sent', 'Verbal Approval']);
   await page.goto('/#deal-d_cascade');
   await expect(page.getByText('isn’t visible to your role')).toBeVisible();
 });
 
-test('non-admins cannot open the admin page by URL', async ({ page }) => {
+test('everyone has Settings, but only admins see user management', async ({ page }) => {
   await signIn(page, 'gtm');
   await page.goto('/#admin');
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Good');
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  await expect(page.getByText('Your account')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Users and teams' })).toHaveCount(0);
 });
 
 test('admin invites a user who accepts with an invite code', async ({ page }) => {

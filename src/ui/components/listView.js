@@ -13,8 +13,8 @@ import { ctx, rerender, state } from '../context.js';
 import { $, $$, modal, toast } from '../dom.js';
 import { displayValue, inputHtml } from '../forms.js';
 
-/** Rows rendered per page; more load on demand so 10k-row lists stay responsive. */
-const PAGE_SIZE = 200;
+/** Rows per page; paging keeps 10k-row lists responsive ("Showing 25 of 363", slide 5). */
+const PAGE_SIZE = 25;
 
 /** Operators offered per field type. */
 const OPS_BY_TYPE = {
@@ -30,7 +30,7 @@ const OPS_BY_TYPE = {
 
 /** Per-type list state, created on first visit. */
 function listState(type, defaultSort) {
-  ctx.ui.lists[type] = ctx.ui.lists[type] || { viewId: 'all', search: '', filters: [], sort: defaultSort, ids: null, idsLabel: '', limit: PAGE_SIZE };
+  ctx.ui.lists[type] = ctx.ui.lists[type] || { viewId: 'all', search: '', filters: [], sort: defaultSort, ids: null, idsLabel: '', page: 0 };
   return ctx.ui.lists[type];
 }
 
@@ -54,24 +54,36 @@ export function renderListView(root, cfg) {
   const defs = fieldDefs(cfg.type, state()); // filterable properties come from the field registry
   const views = state().savedViews.filter((v) => v.objectType === cfg.type && (v.shared || v.ownerId === ctx.user.id));
   const rows = runQuery(cfg.rows, ls, cfg.accessors, cfg.searchFields, ctx.now());
-  const page = rows.slice(0, ls.limit);
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  ls.page = Math.min(ls.page || 0, pages - 1); // clamp after filters shrink the list
+  const page = rows.slice(ls.page * PAGE_SIZE, (ls.page + 1) * PAGE_SIZE);
+  const quick = cfg.quickFilters || [];
+  const quickValue = (q) => ls.filters.find((f) => f.field === q.field && f.op === (q.op || 'is'))?.value ?? '';
+  const chipFilters = ls.filters.map((f, i) => [f, i]).filter(([f]) => !quick.some((q) => q.field === f.field && (q.op || 'is') === f.op)); // quick filters show in their own dropdown
+  const pagerNums = [...new Set([0, 1, 2, ls.page - 1, ls.page, ls.page + 1, pages - 1])].filter((n) => n >= 0 && n < pages).sort((a, b) => a - b);
   const canWriteAny = canEdit(ctx.user, cfg.type, null) || ctx.user.role === 'admin';
 
-  root.innerHTML = `<div class="pagehead"><div><h1>${esc(cfg.title)}</h1><div class="sub">${rows.length.toLocaleString()} of ${cfg.rows.length.toLocaleString()} ${esc(cfg.title.toLowerCase())}</div></div><div class="sp"></div>${cfg.headerActions || ''}</div>
+  root.innerHTML = `<div class="pagehead"><h1>${esc(cfg.title)}</h1><div class="sp"></div>${cfg.headerActions || ''}</div>
   <div class="viewtabs" role="tablist" aria-label="Saved views">
     <button class="v ${ls.viewId === 'all' ? 'on' : ''}" data-view="all" role="tab">All ${esc(cfg.title.toLowerCase())}</button>
-    ${views.map((v) => `<button class="v ${ls.viewId === v.id ? 'on' : ''}" data-view="${v.id}" role="tab">${esc(v.name)}${v.shared ? ' <span class="faint small">team</span>' : ''}${v.ownerId === ctx.user.id || isAdmin(ctx.user) ? `<span class="x" data-delview="${v.id}" role="button" aria-label="Delete view ${esc(v.name)}">✕</span>` : ''}</button>`).join('')}
-    <div class="sp"></div><button class="btn sm" id="lvSave">Save view</button>
+    <button class="v ${ls.viewId === 'mine' ? 'on' : ''}" data-view="mine" role="tab">My ${esc(cfg.title.toLowerCase())}</button>
+    ${views.map((v) => `<button class="v ${ls.viewId === v.id ? 'on' : ''}" data-view="${v.id}" role="tab">${esc(v.name)}${v.ownerId === ctx.user.id || isAdmin(ctx.user) ? `<span class="x" data-delview="${v.id}" role="button" aria-label="Delete view ${esc(v.name)}">✕</span>` : ''}</button>`).join('')}
+    <button class="add" id="lvSave" aria-label="Save view" title="Save view">+ Save view</button>
   </div>
-  <div class="tools">
-    <div class="search" style="max-width:300px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="lvQ" placeholder="Search ${esc(cfg.title.toLowerCase())}" value="${esc(ls.search)}" aria-label="Search ${esc(cfg.title.toLowerCase())}" autocomplete="off"></div>
+  <div class="fbar">
+    <div class="search" style="max-width:240px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="lvQ" placeholder="Search ${esc(cfg.title.toLowerCase())}" value="${esc(ls.search)}" aria-label="Search ${esc(cfg.title.toLowerCase())}" autocomplete="off"></div>
+    ${quick
+      .map((q, i) => {
+        const v = String(quickValue(q));
+        return `<select class="fsel ${v ? 'on' : ''}" data-quick="${i}" aria-label="${esc(q.label)}"><option value="">${esc(q.label)}</option>${q.options.map(([ov, ol]) => `<option value="${esc(ov)}"${v === String(ov) ? ' selected' : ''}>${esc(ol)}</option>`).join('')}</select>`;
+      })
+      .join('')}
+    <button class="linkbtn muted" id="lvAdd">More filters</button>
     <div class="chips">
       ${ls.ids ? `<span class="chip on">${esc(ls.idsLabel)}<button data-clearids aria-label="Remove">✕</button></span>` : ''}
-      ${ls.filters.map((f, i) => `<span class="chip">${esc(describeFilter(f, defs))}<button data-rmf="${i}" aria-label="Remove filter">✕</button></span>`).join('')}
-      <button class="chipbtn" id="lvAdd">+ Add filter</button>
-      ${ls.filters.length || ls.ids || ls.search ? '<button class="chipbtn" id="lvClear">Clear all</button>' : ''}
+      ${chipFilters.map(([f, i]) => `<span class="chip">${esc(describeFilter(f, defs))}<button data-rmf="${i}" aria-label="Remove filter">✕</button></span>`).join('')}
     </div>
-    <div class="sp"></div><button class="btn" id="lvExp">Export CSV</button>
+    ${ls.filters.length || ls.ids || ls.search ? '<button class="linkbtn" id="lvClear">Clear all</button>' : ''}
   </div>
   <div class="tablewrap"><table class="t frozen"><thead><tr>${cfg.columns.map((c) => `<th class="${c.num ? 'num' : ''}" data-sort="${c.k}" aria-sort="${ls.sort.field === c.k ? (ls.sort.dir > 0 ? 'ascending' : 'descending') : 'none'}">${esc(c.l)}${ls.sort.field === c.k ? (ls.sort.dir > 0 ? ' ↑' : ' ↓') : ''}</th>`).join('')}</tr></thead><tbody>
   ${page
@@ -90,13 +102,13 @@ export function renderListView(root, cfg) {
     })
     .join('')}
   </tbody></table>${rows.length ? '' : `<div class="empty">No ${esc(cfg.title.toLowerCase())} match. Clear a filter or add a new one.</div>`}</div>
-  ${rows.length > page.length ? `<div style="text-align:center;margin-top:12px"><button class="btn" id="lvMore">Show ${Math.min(PAGE_SIZE, rows.length - page.length)} more</button></div>` : ''}`;
+  <div class="tfoot">Showing ${page.length} of ${rows.length.toLocaleString()}${rows.length !== cfg.rows.length ? ` (${cfg.rows.length.toLocaleString()} in total)` : ''}${pages > 1 ? `<div class="pager" role="navigation" aria-label="Pages">${ls.page > 0 ? '<button data-pg="prev" aria-label="Previous page">‹</button>' : ''}${pagerNums.map((n, i) => `${i && n - pagerNums[i - 1] > 1 ? '<span>…</span>' : ''}<button data-pg="${n}" class="${n === ls.page ? 'on' : ''}" aria-label="Page ${n + 1}"${n === ls.page ? ' aria-current="page"' : ''}>${n + 1}</button>`).join('')}${ls.page < pages - 1 ? '<button data-pg="next" aria-label="Next page">›</button>' : ''}</div>` : ''}</div>`;
 
   /* ---- bindings ---- */
   let debounce;
   $('#lvQ', root).addEventListener('input', (e) => {
     ls.search = e.target.value; // record the text immediately so any other re-render uses it
-    ls.limit = PAGE_SIZE;
+    ls.page = 0;
     clearTimeout(debounce);
     debounce = setTimeout(() => {
       // only the redraw is debounced, so large lists don't re-render on every key
@@ -114,14 +126,15 @@ export function renderListView(root, cfg) {
       (b.onclick = (e) => {
         if (e.target.dataset.delview) return; // the ✕ inside the tab has its own handler
         const v = views.find((x) => x.id === b.dataset.view);
+        const mine = b.dataset.view === 'mine'; // built-in "My …" view: owned by me
         Object.assign(
           ls,
           v
             ? { viewId: v.id, ...clone({ search: '', filters: [], sort: cfg.defaultSort, ...v.query }) }
-            : { viewId: 'all', search: '', filters: [], sort: cfg.defaultSort },
+            : { viewId: mine ? 'mine' : 'all', search: '', filters: mine ? [{ field: 'ownerId', op: 'is', value: ctx.user.id }] : [], sort: cfg.defaultSort },
         );
         ls.ids = null;
-        ls.limit = PAGE_SIZE;
+        ls.page = 0;
         rerender();
       }),
   );
@@ -193,10 +206,24 @@ export function renderListView(root, cfg) {
       rerender();
     });
   });
-  $('#lvMore', root)?.addEventListener('click', () => {
-    ls.limit += PAGE_SIZE;
-    rerender();
-  });
+  $$('[data-pg]', root).forEach(
+    (b) =>
+      (b.onclick = () => {
+        ls.page = b.dataset.pg === 'prev' ? ls.page - 1 : b.dataset.pg === 'next' ? ls.page + 1 : Number(b.dataset.pg);
+        rerender();
+      }),
+  );
+  $$('[data-quick]', root).forEach(
+    (sel) =>
+      (sel.onchange = () => {
+        const q = quick[Number(sel.dataset.quick)];
+        const op = q.op || 'is';
+        ls.filters = ls.filters.filter((f) => !(f.field === q.field && f.op === op)); // one value per quick filter
+        if (sel.value) ls.filters.push({ field: q.field, op, value: q.numeric ? Number(sel.value) : sel.value });
+        ls.page = 0;
+        rerender();
+      }),
+  );
   $('#lvExp', root).onclick = () => exportRows(`ik-${cfg.type}s`, cfg.toExport(rows), 'csv');
   cfg.onBind?.(root);
 }
@@ -215,7 +242,7 @@ function filterDialog(defs, ls) {
         const value = valueEl ? valueEl.value : undefined;
         if (!OPERATORS[op].noValue && (value === '' || value === undefined)) throw new Error('Enter a value.');
         ls.filters.push({ field, op, value });
-        ls.limit = PAGE_SIZE;
+        ls.page = 0;
         rerender();
       },
     },

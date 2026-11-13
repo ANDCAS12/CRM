@@ -21,6 +21,42 @@ function grouped(fields) {
   return groups;
 }
 
+/**
+ * Swaps a displayed value for an input. Enter, blur or change saves through saveField (same rules as forms);
+ * Escape cancels. `after` runs once either way (re-draw the panel or page).
+ * @param {HTMLElement} el element holding the value
+ * @param {string} type record type
+ * @param {string} id record id
+ * @param {object} f field definition
+ * @param {object} record current (scrubbed) record
+ * @param {() => void} after
+ */
+export function startInlineEdit(el, type, id, f, record, after) {
+  if (el.querySelector('input,select,textarea')) return; // already editing
+  el.innerHTML = inputHtml(f, record[f.k]);
+  const input = el.querySelector('input,select,textarea');
+  input.focus();
+  let done = false;
+  const commit = () => {
+    if (done) return;
+    done = true;
+    let value = f.t === 'multi' ? [...input.selectedOptions].map((o) => o.value) : f.t === 'check' ? input.checked : input.value.trim();
+    if (f.t === 'number') value = value === '' ? '' : Number(value);
+    if (saveField(type, id, f.k, value)) rerender(); // refresh the page behind
+    after();
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && f.t !== 'multi') commit();
+    if (e.key === 'Escape') {
+      e.stopPropagation(); // don't close a surrounding panel
+      done = true;
+      after();
+    }
+  });
+  input.addEventListener(f.t === 'select' || f.t === 'check' || f.t === 'date' ? 'change' : 'blur', commit);
+  if (f.t !== 'select' && f.t !== 'check' && f.t !== 'date') input.addEventListener('change', commit);
+}
+
 /** Read-only grouped property list used by the record "About" tab. */
 export function propertiesHtml(type, record) {
   const groups = grouped(fieldDefs(type, state()));
@@ -80,32 +116,7 @@ export function openPropertiesPanel(type, id) {
       el.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), open());
     }
   };
-  /** Swaps a value for an input; Enter or change saves, Escape cancels. */
-  const startEdit = (el, f, record) => {
-    if (el.querySelector('input,select,textarea')) return;
-    el.innerHTML = inputHtml(f, record[f.k]);
-    const input = el.querySelector('input,select,textarea');
-    input.focus();
-    let done = false;
-    const commit = () => {
-      if (done) return;
-      done = true;
-      let value = f.t === 'multi' ? [...input.selectedOptions].map((o) => o.value) : f.t === 'check' ? input.checked : input.value.trim();
-      if (f.t === 'number') value = value === '' ? '' : Number(value);
-      if (saveField(type, id, f.k, value)) rerender(); // refresh the page behind the panel
-      draw();
-    };
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && f.t !== 'multi') commit();
-      if (e.key === 'Escape') {
-        e.stopPropagation(); // don't close the whole panel
-        done = true;
-        draw();
-      }
-    });
-    input.addEventListener(f.t === 'select' || f.t === 'check' || f.t === 'date' ? 'change' : 'blur', commit);
-    if (f.t !== 'select' && f.t !== 'check' && f.t !== 'date') input.addEventListener('change', commit);
-  };
+  const startEdit = (el, f, record) => startInlineEdit(el, type, id, f, record, draw);
   $('#propQ', panel.body).addEventListener('input', draw);
   draw();
 }

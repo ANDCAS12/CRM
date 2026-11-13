@@ -1,13 +1,14 @@
-// Smoke checks that every page renders for every role, plus mobile and dark mode.
-import { expect, signIn, test } from './fixtures.js';
+// Smoke checks that every page renders for every role, plus mobile, theme and form labels.
+import { createFromMenu, expect, signIn, test } from './fixtures.js';
 
 const PAGES = [
-  'dashboard',
+  'home',
   'deals',
   'companies',
   'contacts',
   'tasks',
   'contracts',
+  'placements',
   'calls',
   'reports',
   'admin',
@@ -27,6 +28,14 @@ for (const role of ['admin', 'gtm', 'delivery', 'finance']) {
   });
 }
 
+test('V2 features are clearly labelled', async ({ page, isMobile }) => {
+  await signIn(page);
+  await expect(page.locator('#side')).toContainText('Placements');
+  if (isMobile) await page.getByRole('button', { name: 'Open menu' }).click(); // on phones Ask Claude lives in the side menu
+  await page.locator(isMobile ? '#navAsk' : '#askBtn').click();
+  await expect(page.getByRole('dialog', { name: 'Ask Claude' })).toContainText('V2');
+});
+
 test('mobile menu opens the sidebar', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await signIn(page);
@@ -34,14 +43,15 @@ test('mobile menu opens the sidebar', async ({ page }) => {
   await expect(page.locator('#side')).toHaveClass(/open/);
 });
 
-test('dark mode toggles the theme attribute', async ({ page }) => {
+test('theme can be switched from the account menu', async ({ page }) => {
   await signIn(page);
-  await page.getByRole('button', { name: 'Switch light or dark' }).click();
+  await page.locator('#meBtn').click();
+  await page.getByRole('menuitem', { name: 'Switch light or dark' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', /dark|light/);
 });
 
 test('form fields have accessible labels', async ({ page }) => {
   await signIn(page);
-  await page.getByRole('button', { name: 'Create deal' }).click();
+  await createFromMenu(page, 'Deal');
   for (const label of ['Deal name *', 'Company *', 'Stage *', 'Next step date']) await expect(page.getByLabel(label, { exact: true })).toBeVisible();
 });

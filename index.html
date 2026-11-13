@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="IK CRM: pipeline, relationships and contracts for Insight Kitchen">
-<title>IK CRM</title>
+<meta name="description" content="Central Kitchen: IK's in-house CRM for pipeline, relationships and contracts">
+<title>Central Kitchen</title>
 <!-- SheetJS for Excel import/export; pinned version from an allowed CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- build:css --><link rel="stylesheet" href="./src/styles/app.css"><!-- /build:css -->
@@ -16,12 +16,13 @@
     <header class="top">
       <button class="iconbtn menuBtn" id="menuBtn" aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
       <div class="search" role="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input id="q" placeholder="Search deals, companies, contacts and notes" autocomplete="off" aria-label="Search">
+        <input id="q" placeholder="Search deals, companies, contacts, notes" autocomplete="off" aria-label="Search">
         <div class="sres" id="sres" role="listbox" hidden></div></div>
       <div class="sp"></div>
-      <button class="iconbtn" id="themeBtn" aria-label="Switch light or dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
-      <div style="position:relative"><button class="iconbtn" id="bellBtn" aria-label="Reminders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="dot" id="bellDot" hidden></span></button><div class="pop" id="bellPop" hidden></div></div>
-      <button class="btn pri" id="newBtn">Create deal</button>
+      <div class="menuwrap"><button class="btn pri" id="createBtn" aria-haspopup="menu" aria-expanded="false">+ <span class="lbl">Create</span></button><div class="pop" id="createPop" role="menu" hidden></div></div>
+      <button class="btn askbtn" id="askBtn">Ask Claude</button>
+      <div class="menuwrap"><button class="iconbtn" id="bellBtn" aria-label="Reminders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="dot-badge" id="bellDot" hidden></span></button><div class="pop wide" id="bellPop" hidden></div></div>
+      <div class="menuwrap"><button class="avatar-btn" id="meBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account"></button><div class="pop" id="mePop" role="menu" hidden></div></div>
     </header>
     <main id="view" tabindex="-1"></main>
   </div>

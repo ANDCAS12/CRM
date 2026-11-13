@@ -5,14 +5,14 @@
 import { IK_DOMAIN } from '../../config/constants.js';
 import { matchCall } from '../../core/matching.js';
 import { isOpen } from '../../core/deals.js';
-import { companyName } from '../../core/lookups.js';
-import { daysAgoISO } from '../../utils/dates.js';
-import { esc, fmtDate, truncate } from '../../utils/format.js';
-import { refLink, refreshSummary } from '../actions.js';
-import { ctx, state } from '../context.js';
+import { companyName, dealName } from '../../core/lookups.js';
+import { canEdit } from '../../core/permissions.js';
+import { addDays, daysAgoISO, isoDay } from '../../utils/dates.js';
+import { esc, fmtDate } from '../../utils/format.js';
+import { refreshSummary } from '../actions.js';
+import { ctx, rerender, state } from '../context.js';
 import { $, $$, modal, toast } from '../dom.js';
-import { inputHtml } from '../forms.js';
-import { callHtml } from '../components/timeline.js';
+import { formHtml, inputHtml, readForm } from '../forms.js';
 
 /** Sample Fireflies payloads replayed by the demo sync. */
 export const FIREFLIES_SAMPLES = Object.freeze([
@@ -87,47 +87,138 @@ export function syncFireflies(batchSize = 3) {
   return { added: batch.length, matched };
 }
 
-export function renderCalls(root) {
-  const tab = ctx.ui.callsTab;
-  const inbox = state().calls.filter((c) => !c.matched);
-  const all = state()
-    .calls.filter((c) => c.matched)
-    .sort((a, b) => b.date.localeCompare(a.date));
-  root.innerHTML = `<div class="pagehead"><div><h1>Calls</h1><div class="sub">Fireflies calls are matched by attendee email domain and meeting title. Unmatched calls wait in the inbox.</div></div><div class="sp"></div><button class="btn pri" id="ffSync">Sync Fireflies now</button></div>
-  <div class="tabs" role="tablist"><button role="tab" data-ct2="inbox" class="${tab === 'inbox' ? 'on' : ''}">Unmatched inbox (${inbox.length})</button><button role="tab" data-ct2="all" class="${tab === 'all' ? 'on' : ''}">All calls (${all.length})</button></div>
-  ${
-    tab === 'inbox'
-      ? inbox.length
-        ? inbox
-            .map(
-              (c) =>
-                `<div class="card"><div class="tl">${callHtml(c)}</div><div class="small muted" style="margin-top:6px">Attendees: ${c.attendees.map(esc).join(', ')}${c.companyId ? ` · Company guess: ${refLink('company', c.companyId)}` : ''}</div><div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm pri" data-assign="${c.id}">Assign to deal or company</button><button class="btn sm" data-dismiss="${c.id}">Not a client call</button></div></div>`,
-            )
-            .join('')
-        : '<div class="empty">Inbox is clear. New calls that can’t be matched will land here.</div>'
-      : `<div class="tablewrap"><table class="t"><thead><tr><th>Call</th><th>Date</th><th>Duration</th><th>Deal</th><th>Company</th><th>Source</th></tr></thead><tbody>${all.map((c) => `<tr><td><b>${esc(c.title)}</b><div class="small muted">${esc(truncate(c.summary || '', 110))}</div></td><td>${fmtDate(c.date)}</td><td>${c.durationMin} min</td><td>${refLink('deal', c.dealId)}</td><td>${refLink('company', c.companyId)}</td><td>${c.source === 'fireflies' ? 'Fireflies' : 'Manual'}</td></tr>`).join('')}</tbody></table></div>`
-  }`;
-
-  $$('[data-ct2]', root).forEach((b) => (b.onclick = () => ((ctx.ui.callsTab = b.dataset.ct2), ctx.render())));
-  $('#ffSync', root).onclick = () => {
-    const r = syncFireflies();
-    toast(r.added ? `Fireflies: ${r.added} new calls, ${r.matched} matched, ${r.added - r.matched} in the inbox` : 'Fireflies is up to date. No new calls.');
-    ctx.render();
-  };
-  $$('[data-dismiss]', root).forEach(
-    (b) => (b.onclick = () => (ctx.api.remove('call', b.dataset.dismiss), toast('Call removed from the inbox'), ctx.render())),
-  );
-  $$('[data-assign]', root).forEach((b) => (b.onclick = () => assignCall(ctx.api.raw('call', b.dataset.assign))));
+/** Parses a due date out of an action item such as "Send revised pricing by Nov 19" (falls back to +7 days). */
+export function dueFromText(text, now = new Date()) {
+  const m = String(text).match(/\bby\s+([A-Z][a-z]{2,8}\.?\s+\d{1,2})\b/);
+  if (m) {
+    const d = new Date(`${m[1].replace('.', '')} ${now.getFullYear()} 12:00`);
+    if (!Number.isNaN(d.getTime())) return isoDay(d < now ? new Date(d.setFullYear(d.getFullYear() + 1)) : d); // a date already passed means next year
+  }
+  return addDays(isoDay(now), 7);
 }
 
-/** Assigns an inbox call to a company, deal and contacts (H-02). */
-function assignCall(call) {
+/** Calls shown for the active tab: all, unmatched (H-02) or calls I attended. */
+function callsFor(tab) {
+  const s = state();
+  const mine = (c) => (c.attendees || []).map((a) => a.toLowerCase()).includes(ctx.user.email);
+  const list = s.calls.filter((c) => (tab === 'unmatched' ? !c.matched : tab === 'mine' ? mine(c) : true));
+  return list.sort((a, b) => Number(a.matched) - Number(b.matched) || b.date.localeCompare(a.date)); // unmatched first, newest first
+}
+
+export function renderCalls(root) {
+  const ui = ctx.ui;
+  const s = state();
+  const tab = ['all', 'unmatched', 'mine'].includes(ui.callsTab) ? ui.callsTab : 'all';
+  const list = callsFor(tab);
+  const unmatched = s.calls.filter((c) => !c.matched).length;
+  if (!list.some((c) => c.id === ui.callSel)) ui.callSel = list[0]?.id || ''; // keep a call selected
+  const sel = s.calls.find((c) => c.id === ui.callSel);
+  const openDeals = s.deals.filter((d) => isOpen(d) && !d.archived);
+  const dealOptions = (c) =>
+    `<option value="">${c.matched ? 'Move to another deal' : 'Assign to deal or company'}</option><optgroup label="Open deals">${openDeals.map((d) => `<option value="deal:${d.id}">${esc(d.name)} · ${esc(companyName(s, d.companyId))}</option>`).join('')}</optgroup><optgroup label="Company only">${s.companies.map((co) => `<option value="company:${co.id}">${esc(co.name)}</option>`).join('')}</optgroup>`;
+  const domainOf = (c) => (c.attendees || []).map((a) => a.split('@')[1]).find((d) => d && d !== IK_DOMAIN) || '';
+  root.innerHTML = `<div class="pagehead"><h1>Calls</h1><div class="sp"></div>
+      <div class="search" style="max-width:320px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input disabled placeholder="Search all transcripts, e.g. “pricing”" aria-label="Search all transcripts (V2)"></div><span class="v2" title="Transcript search arrives in V2 (H-06)">V2</span>
+      <button class="btn pri" id="ffSync">Sync Fireflies now</button></div>
+    <div class="tabs" role="tablist"><button role="tab" data-ct2="all" class="${tab === 'all' ? 'on' : ''}">All calls</button><button role="tab" data-ct2="unmatched" class="${tab === 'unmatched' ? 'on' : ''}">Unmatched (${unmatched})</button><button role="tab" data-ct2="mine" class="${tab === 'mine' ? 'on' : ''}">My calls</button></div>
+    ${
+      list.length
+        ? `<div class="split"><div>${list
+            .map(
+              (
+                c,
+              ) => `<div class="callcard ${c.id === ui.callSel ? 'on' : ''}" data-call="${c.id}" tabindex="0" role="button" aria-pressed="${c.id === ui.callSel}">
+        <div class="t">${esc(c.title)}<span>${fmtDate(c.date).replace(/, \d{4}$/, '')}, ${c.durationMin} min</span></div>
+        <div class="small muted">${domainOf(c) ? `@${esc(domainOf(c))}, ` : ''}${(c.attendees || []).length} attendees</div>
+        <div class="row">${c.matched ? `<span class="badge">${esc(c.dealId ? dealName(s, c.dealId) : companyName(s, c.companyId))}</span>` : `<span class="badge dark">Unmatched</span><select data-assign="${c.id}" aria-label="Assign ${esc(c.title)}">${dealOptions(c)}</select>`}</div></div>`,
+            )
+            .join('')}</div>
+      <div id="callDetail">${sel ? detailHtml(sel, s) : ''}</div></div>`
+        : `<div class="empty">${tab === 'unmatched' ? 'Inbox is clear. Calls that can’t be matched land here.' : 'No calls yet. Click “Sync Fireflies now”.'}</div>`
+    }`;
+
+  $$('[data-ct2]', root).forEach((b) => (b.onclick = () => ((ui.callsTab = b.dataset.ct2), ctx.render())));
+  $('#ffSync', root).onclick = () => {
+    const r = syncFireflies();
+    toast(r.added ? `Fireflies: ${r.added} new calls, ${r.matched} matched, ${r.added - r.matched} unmatched` : 'Fireflies is up to date. No new calls.');
+    ctx.render();
+  };
+  $$('[data-call]', root).forEach((c) => {
+    c.onclick = (e) => {
+      if (e.target.closest('select')) return; // the assign menu has its own handler
+      ui.callSel = c.dataset.call;
+      rerender();
+    };
+    c.onkeydown = (e) => e.key === 'Enter' && c.onclick(e);
+  });
+  $$('[data-assign]', root).forEach(
+    (sel2) =>
+      (sel2.onchange = () =>
+        sel2.value &&
+        assign(
+          s.calls.find((c) => c.id === sel2.dataset.assign),
+          sel2.value,
+        )),
+  );
+  bindDetail(root, sel);
+}
+
+/** Right-hand call detail: suggested match, summary, action items with "Create task", links. */
+function detailHtml(c, s) {
+  const attendees = (c.attendees || []).map((a) => s.contacts.find((p) => p.email?.toLowerCase() === a.toLowerCase())?.name || a).join(', ');
+  const guess = !c.matched && c.companyId ? s.companies.find((co) => co.id === c.companyId) : null;
+  const guessDeal = guess && s.deals.find((d) => d.companyId === guess.id && isOpen(d) && !d.archived);
+  const match = c.matched
+    ? `<div class="match"><span class="tx" style="flex:1"><span class="small muted">${c.source === 'fireflies' ? 'Matched automatically' : 'Logged manually'}</span><br><b>${esc(companyName(s, c.companyId))}${c.dealId ? `, deal: ${esc(dealName(s, c.dealId))}` : ''}</b></span><button class="btn sm" id="chgMatch">Change</button></div>`
+    : guess
+      ? `<div class="match"><span class="tx" style="flex:1"><span class="small muted">Suggested match (auto, by email domain)</span><br><b>${esc(guess.name)}${guessDeal ? `, deal: ${esc(guessDeal.name)}` : ''}</b></span><button class="btn pri sm" id="okMatch" data-target="${guessDeal ? `deal:${guessDeal.id}` : `company:${guess.id}`}">Confirm</button><button class="btn sm" id="chgMatch">Change</button></div>`
+      : '<div class="match"><span class="small muted" style="flex:1">No company matches these attendees. Assign it on the left, or remove it if it wasn’t a client call.</span></div>';
+  const canTask = canEdit(ctx.user, 'task', null);
+  return `<div class="card"><div class="cardh"><h2>${esc(c.title)}</h2><span class="count">${c.source === 'fireflies' ? 'From Fireflies' : 'Logged manually'}</span></div>
+    <div class="small muted">${fmtDate(c.date)}, ${c.durationMin} min. Attendees: ${esc(attendees)}</div>
+    ${match}
+    <h3 style="margin:14px 0 4px">Summary</h3><p style="margin:0">${esc(c.summary || 'No summary.')}</p>
+    ${(c.actionItems || []).length ? `<h3 style="margin:16px 0 4px">Action items</h3><ul class="mini">${c.actionItems.map((a, i) => `<li><span class="tx">${esc(a)}</span>${canTask ? `<button class="btn sm" data-mktask="${i}">Create task</button>` : ''}</li>`).join('')}</ul><p class="small faint" style="margin:6px 0 0">Choose who owns each task and when it’s due before creating it. Automatic task suggestions and calendar alerts arrive in V2.</p>` : ''}
+    <div style="display:flex;gap:16px;margin-top:14px;font-weight:600">${c.recordingUrl ? `<a href="${esc(c.recordingUrl)}" target="_blank" rel="noopener">Recording</a>` : ''}${c.transcriptUrl ? `<a href="${esc(c.transcriptUrl)}" target="_blank" rel="noopener">Full transcript</a>` : ''}${!c.matched ? '<button class="linkbtn muted" id="notClient" style="margin-left:auto">Not a client call</button>' : ''}</div></div>`;
+}
+
+/** Wires the detail panel. */
+function bindDetail(root, c) {
+  if (!c) return;
+  $('#okMatch', root)?.addEventListener('click', (e) => assign(c, e.target.dataset.target));
+  $('#chgMatch', root)?.addEventListener('click', () => assignDialog(c));
+  $('#notClient', root)?.addEventListener('click', () => {
+    ctx.api.remove('call', c.id);
+    toast('Removed: not a client call');
+    ctx.render();
+  });
+  $$('[data-mktask]', root).forEach((b) => (b.onclick = () => taskFromActionItem(c, c.actionItems[Number(b.dataset.mktask)])));
+}
+
+/** Assigns a call to "deal:<id>" or "company:<id>" and refreshes the deal summary (H-02, H-04). */
+function assign(call, target) {
+  const s = state();
+  const [kind, id] = target.split(':');
+  const deal = kind === 'deal' ? s.deals.find((d) => d.id === id) : null;
+  const companyId = deal ? deal.companyId : id;
+  const emails = (call.attendees || []).map((a) => a.toLowerCase());
+  const contactIds = s.contacts.filter((p) => p.email && emails.includes(p.email.toLowerCase())).map((p) => p.id); // link known attendees
+  ctx.api.update('call', call.id, { companyId, dealId: deal?.id || '', contactIds, matched: true });
+  ctx.api.logActivity('call', { dealId: deal?.id || '', companyId, text: `assigned the call “${call.title}”` });
+  ctx.store.save();
+  toast(deal ? `Call added to ${deal.name}` : 'Call added to the company');
+  if (deal) refreshSummary(deal.id, { auto: true });
+  ctx.render();
+}
+
+/** Full assignment dialog (company, deal and contacts), used by "Change". */
+function assignDialog(call) {
   const s = state();
   modal(
     'Assign call',
     `<p class="muted" style="margin-top:0">${esc(call.title)}</p><div class="grid2">
     <div><label class="l" for="f_ac">Company</label>${inputHtml({ k: 'ac', t: 'select', o: [['', ''], ...s.companies.map((c) => [c.id, c.name])] }, call.companyId)}</div>
-    <div><label class="l" for="f_ad">Deal (optional)</label>${inputHtml({ k: 'ad', t: 'select', o: [['', ''], ...s.deals.filter(isOpen).map((d) => [d.id, `${d.name} — ${companyName(s, d.companyId)}`])] }, '')}</div>
+    <div><label class="l" for="f_ad">Deal (optional)</label>${inputHtml({ k: 'ad', t: 'select', o: [['', ''], ...s.deals.filter(isOpen).map((d) => [d.id, `${d.name} — ${companyName(s, d.companyId)}`])] }, call.dealId)}</div>
     <div class="full"><label class="l" for="f_ap">Contacts</label>${inputHtml({ k: 'ap', t: 'multi', o: s.contacts.map((p) => [p.id, `${p.name} (${companyName(s, p.companyId)})`]) }, call.contactIds)}</div></div>`,
     {
       saveLabel: 'Assign',
@@ -140,6 +231,32 @@ function assignCall(call) {
         ctx.store.save();
         toast('Call assigned');
         if (dealId) refreshSummary(dealId, { auto: true });
+        ctx.render();
+      },
+    },
+  );
+}
+
+/** Turns a call action item into a task; the person confirms owner and due date first (Nov 13 walkthrough). */
+function taskFromActionItem(call, item) {
+  const s = state();
+  const due = dueFromText(item, ctx.now());
+  const owner = s.users.find((u) => u.status === 'active' && item.toLowerCase().startsWith(u.name.split(' ')[0].toLowerCase()))?.id || ctx.user.id; // "Russell to draft…" -> Russell
+  modal(
+    'Create task from action item',
+    `<p class="small muted" style="margin-top:0">From “${esc(call.title)}”. Check who owns it and when it’s due.</p>${formHtml('task', { title: item, assigneeId: owner, dueDate: due, reminderDate: due, emailReminder: true })}`,
+    {
+      saveLabel: 'Create task',
+      onSave: (body) => {
+        const t = readForm('task', body);
+        if (!t.title || !t.dueDate) throw new Error('A task needs a title and a due date.');
+        ctx.api.create('task', {
+          ...t,
+          done: false,
+          refType: call.dealId ? 'deal' : call.companyId ? 'company' : '',
+          refId: call.dealId || call.companyId || '',
+        });
+        toast('Task created');
         ctx.render();
       },
     },

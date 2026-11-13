@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contractAlerts, forecastByMonth, forecastByQuarter, groupPipeline, pipelineSummary } from '../../src/core/reports.js';
+import { columnTotals, contractAlerts, dealSummaryBar, forecastByMonth, forecastByQuarter, groupPipeline, pipelineSummary } from '../../src/core/reports.js';
 import { NOW, setup } from './helpers.js';
 
 describe('reports', () => {
@@ -17,7 +17,7 @@ describe('reports', () => {
     expect(g[0].value).toBeGreaterThanOrEqual(g.at(-1).value);
     expect(g.reduce((a, x) => a + x.count, 0)).toBe(state.deals.filter((d) => !d.stage.startsWith('Closed')).length);
   });
-  it('groups missing keys under "Not set"', () => expect(groupPipeline([{ stage: 'Lead', amount: 1, probability: 10 }], () => '')[0].label).toBe('Not set'));
+  it('groups missing keys under "Not set"', () => expect(groupPipeline([{ stage: 'Suspect', amount: 1, probability: 10 }], () => '')[0].label).toBe('Not set'));
   it('forecasts six months starting this month', () => {
     const f = forecastByMonth(state.deals, NOW);
     expect(f).toHaveLength(6);
@@ -27,6 +27,23 @@ describe('reports', () => {
   it('forecasts by quarter in order', () => {
     const q = forecastByQuarter(state.deals);
     expect(q.map((x) => x.key)).toEqual([...q.map((x) => x.key)].sort());
+  });
+  it('deals summary bar has the six B-14 figures', () => {
+    const deals = [
+      { stage: 'Prospect', amount: 100, probability: 20, createdAt: '2026-11-01T10:00:00Z' },
+      {
+        stage: 'Closed won',
+        amount: 300,
+        probability: 100,
+        createdAt: '2026-06-01T10:00:00Z',
+        stageHistory: [{ stage: 'Closed won', at: '2026-07-01T10:00:00Z' }],
+      },
+      { stage: 'Closed lost', amount: 200, probability: 0, createdAt: '2026-09-01T10:00:00Z', expectedClose: '2026-09-11' },
+    ];
+    // cycle time: won took 30 days, lost 10 days -> 20
+    expect(dealSummaryBar(deals, NOW)).toEqual({ total: 600, weightedOpen: 20, open: 100, closedWon: 300, newAmount: 100, averageAge: 20 });
+    expect(dealSummaryBar(deals.slice(0, 1), NOW).averageAge).toBeNull(); // nothing closed yet
+    expect(columnTotals(deals.slice(0, 1))).toEqual({ value: 100, weighted: 20 });
   });
   it('contract alerts use 30/60/90 bands', () => {
     const a = contractAlerts(state.contracts, NOW);

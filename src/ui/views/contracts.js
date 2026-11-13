@@ -7,7 +7,8 @@ import { contractAlerts } from '../../core/reports.js';
 import { canImport } from '../../core/importer.js';
 import { firstName, userName, companyName } from '../../core/lookups.js';
 import { addDays, dayDiff, today } from '../../utils/dates.js';
-import { esc, fmtDate, money } from '../../utils/format.js';
+import { esc, fmtDate, kmoney, money } from '../../utils/format.js';
+import { renderRecordPage, sideCard } from '../components/recordPage.js';
 import { contractForm, exportRows, refLink } from '../actions.js';
 import { ctx, state } from '../context.js';
 import { $ } from '../dom.js';
@@ -81,30 +82,89 @@ export function renderContractRecord(root, id) {
     root.innerHTML = '<div class="empty">Contract not found. <a href="#contracts">Back to contracts</a></div>';
     return;
   }
-  const children = state().contracts.filter((x) => x.parentMsaId === id);
+  const s = state();
+  const company = s.companies.find((c) => c.id === k.companyId);
+  const children = s.contracts.filter((x) => x.parentMsaId === id);
   const days = k.endDate ? dayDiff(today(ctx.now()), k.endDate) : null;
-  const kv = (rows) => `<dl class="kv">${rows.map(([a, b]) => `<dt>${esc(a)}</dt><dd>${b === '' || b === undefined ? '—' : b}</dd>`).join('')}</dl>`;
-  root.innerHTML = `<div class="pagehead"><div><div class="small muted"><a href="#contracts">Contracts</a></div><h1>${esc(k.name)}</h1><div class="sub"><span class="badge">${esc(k.type)}</span> ${refLink('company', k.companyId)} · <span class="pill">${esc(k.status)}</span>${days !== null && days >= 0 && days <= 90 ? ` · <span class="${days <= 30 ? 'warn' : ''}">ends in ${days} days</span>` : ''}</div></div><div class="sp"></div>${canEdit(ctx.user, 'contract', k) ? '<button class="btn" id="eK">Edit</button>' : ''}</div>
-  <div class="rec" style="grid-template-columns:1fr 1fr">
-    <div class="card"><div class="cardh"><h2>Terms</h2></div>${kv([
-      ['Effective date', fmtDate(k.effectiveDate)],
-      ['End date', fmtDate(k.endDate)],
-      ['Notice period', k.noticeDays ? `${k.noticeDays} days` : ''],
-      ['Notice deadline', k.endDate && k.noticeDays ? fmtDate(addDays(k.endDate, -k.noticeDays)) : ''],
-      ['Auto-renew', k.autoRenew ? 'Yes' : 'No'],
-      ['Total value', 'totalValue' in k ? money(k.totalValue) : '<span class="lock">Restricted for your role</span>'],
-      ['Billing model', esc(k.billingModel)],
-      ['Payment terms', esc(k.paymentTerms)],
-    ])}</div>
-    <div><div class="card"><div class="cardh"><h2>Parties and links</h2></div>${kv([
-      ['IK signatory', esc(k.ikSignatory)],
-      ['Client signatory', esc(k.clientSignatory)],
-      ['Renewal owner', esc(userName(state(), k.renewalOwnerId))],
-      ['Parent MSA', refLink('contract', k.parentMsaId)],
-      ['Linked deals', (k.dealIds || []).map((d) => refLink('deal', d)).join(', ')],
-      ['File', k.fileUrl ? `<a href="${esc(k.fileUrl)}" target="_blank" rel="noopener">Open in SharePoint</a>` : ''],
-    ])}</div>
-    ${children.length ? `<div class="card"><div class="cardh"><h2>Under this MSA</h2></div><ul class="mini">${children.map((c) => `<li>${refLink('contract', c.id)}<span class="sp"></span><span class="pill">${esc(c.status)}</span></li>`).join('')}</ul></div>` : ''}</div>
-  </div>`;
-  $('#eK', root)?.addEventListener('click', () => contractForm(ctx.api.get('contract', id)));
+  const visible = 'totalValue' in k;
+  const statuses = CONTRACT_STATUSES.filter((x) => x !== 'Expired');
+  const cur = statuses.indexOf(k.status);
+  const head = `<h1>${esc(k.name)}</h1><div class="subt">${esc(company?.name || '')}</div>
+    <div class="badges"><span class="badge dark">${esc(k.type)}</span><span class="badge ${k.status === 'Signed' ? '' : 'dark'}">${esc(k.status)}</span></div>
+    <div class="big">${visible ? kmoney(k.totalValue) : '<span class="lock" style="font-size:15px">Restricted</span>'}</div><div class="small muted">Total contract value (restricted field)</div>
+    <div class="note">Rates and margins: Finance and Admin only</div>
+    ${canEdit(ctx.user, 'contract', k) ? '<div class="row2"><button class="btn sm" id="eK">Edit</button></div>' : ''}`;
+  const right = [
+    children.length || k.type === 'MSA'
+      ? sideCard(
+          'Contracts under this MSA',
+          children.length,
+          children.length
+            ? `<ul class="mini">${children.map((c) => `<li><span class="tx"><a class="lnk" href="#contract-${c.id}">${esc(c.name)}</a><span>${esc(c.status)}${c.endDate ? `, ends ${fmtDate(c.endDate)}` : ''}</span></span></li>`).join('')}</ul>`
+            : '<div class="small muted">No SOWs under this MSA yet.</div>',
+        )
+      : '',
+    k.parentMsaId ? sideCard('Parent MSA', 1, refLink('contract', k.parentMsaId)) : '',
+    sideCard(
+      'Linked deals',
+      (k.dealIds || []).length,
+      (k.dealIds || []).length
+        ? `<ul class="mini">${k.dealIds
+            .map((d) => {
+              const deal = s.deals.find((x) => x.id === d) || {};
+              return `<li><span class="tx">${refLink('deal', d)}<span>${kmoney(deal.amount)}, ${esc(deal.stage || '')}</span></span></li>`;
+            })
+            .join('')}</ul>`
+        : '<div class="small muted">No deals linked.</div>',
+    ),
+    sideCard(
+      'Placements',
+      '',
+      '<div class="small muted">Placements on this contract arrive with the Placements screen.</div>',
+      '<span class="v2" style="margin-left:auto">V2</span>',
+    ),
+  ].join('');
+  renderRecordPage(root, {
+    type: 'contract',
+    record: k,
+    back: ['#contracts', 'Contracts'],
+    head,
+    about: [
+      'effectiveDate',
+      'endDate',
+      'noticeDays',
+      'autoRenew',
+      'billingModel',
+      'paymentTerms',
+      { label: 'Next invoice date', html: '', tag: 'V2' },
+      'ikSignatory',
+      'clientSignatory',
+      'renewalOwnerId',
+      'fileUrl',
+    ],
+    center:
+      days !== null && days >= 0
+        ? `<div class="banner">Ends in ${days} days. Renewal alerts at 90, 60 and 30 days.${k.noticeDays ? ` Notice deadline ${fmtDate(addDays(k.endDate, -k.noticeDays))}.` : ''}</div>`
+        : '',
+    tabs: [
+      ['overview', 'Overview'],
+      ['invoices', 'Invoices'],
+      ['files', 'Files'],
+    ],
+    tab: {
+      overview:
+        () => `<div class="card"><div class="cardh"><h2>Contract status</h2></div><div class="progress">${statuses.map((st, i) => `<div><div class="bar ${i < cur || k.status === 'Signed' ? 'done' : i === cur ? 'cur' : ''}"></div><div class="lab ${i === cur ? 'cur' : ''}">${esc(st)}</div></div>`).join('')}</div></div>
+        <div class="card placeholder"><div class="cardh"><h2>Invoices</h2><span class="v2">V2</span></div><p style="margin:0" class="small muted">Invoice log, time-to-invoice reminders from billing terms or Buddy Punch hours, and overdue alerts (F-08 to F-10).</p></div>`,
+      invoices: () =>
+        '<div class="card placeholder"><div class="cardh"><h2>Invoices</h2><span class="v2">V2</span></div><p style="margin:0" class="small muted">Arrives in V2.</p></div>',
+      files: () =>
+        k.fileUrl
+          ? `<div class="card"><a href="${esc(k.fileUrl)}" target="_blank" rel="noopener">Open the contract file in SharePoint</a></div>`
+          : '<div class="empty">No file linked.</div>',
+    },
+    right,
+    composerRef: { refType: 'contract', refId: id },
+    noQuick: true, // contracts have no activity timeline in the MVP
+    onBind: (r) => $('#eK', r)?.addEventListener('click', () => contractForm(ctx.api.get('contract', id))),
+  });
 }

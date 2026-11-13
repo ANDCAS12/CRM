@@ -18,12 +18,12 @@ export function renderLogin(onSignedIn, mode = 'signin') {
     `<label class="l" for="${id}" style="color:rgba(243,243,243,.65)">${label}</label><input id="${id}" type="${type}" ${extra}>`;
   el.innerHTML =
     mode === 'signin'
-      ? `<div class="box"><div class="mark" style="width:40px;height:40px;font-size:15px">IK</div><h1>Sign in to IK CRM</h1><p>Pipeline, relationships and contracts for Insight Kitchen.</p>
+      ? `<div class="box"><div class="brand"><span class="dot" aria-hidden="true"></span>Central Kitchen</div><h1>Sign in to Central Kitchen</h1><p>IK’s CRM for pipeline, relationships and contracts.</p>
       <form id="lForm" novalidate>${field('lE', 'Email', 'email', 'autocomplete="username"')}${field('lP', 'Password', 'password', 'autocomplete="current-password"')}
       <div id="lErr" role="alert" style="color:var(--gold);font-size:13px;min-height:18px;margin-bottom:6px"></div><button class="btn pri" type="submit">Sign in</button></form>
       <p style="margin:14px 0 0"><a href="#" id="toInvite" style="color:var(--gold)">Accept an invite</a></p>
       <div class="demo"><div class="lab">Demo accounts (password: demo). Try each to check role restrictions.</div>${demo.map((u) => `<button data-u="${esc(u.email)}">${esc(u.name)} <span>${ROLES[u.role]}</span></button>`).join('')}</div></div>`
-      : `<div class="box"><div class="mark" style="width:40px;height:40px;font-size:15px">IK</div><h1>Accept your invite</h1><p>Enter the email your admin invited and the invite code they sent you, then choose a password.</p>
+      : `<div class="box"><div class="brand"><span class="dot" aria-hidden="true"></span>Central Kitchen</div><h1>Accept your invite</h1><p>Enter the email your admin invited and the invite code they sent you, then choose a password.</p>
       <form id="iForm" novalidate>${field('iEm', 'Email', 'email', 'autocomplete="username"')}${field('iCode', 'Invite code', 'text', 'autocomplete="off"')}${field('iPw', `Password (at least ${MIN_PASSWORD_LENGTH} characters)`, 'password', 'autocomplete="new-password"')}
       <div id="iErr" role="alert" style="color:var(--gold);font-size:13px;min-height:18px;margin-bottom:6px"></div><button class="btn pri" type="submit">Set password and sign in</button></form>
       <p style="margin:14px 0 0"><a href="#" id="toSignin" style="color:var(--gold)">Back to sign in</a></p></div>`;

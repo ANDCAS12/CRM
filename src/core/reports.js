@@ -31,6 +31,43 @@ export function pipelineSummary(deals, now = new Date()) {
   };
 }
 
+/** Days a summary bar counts as "new" (B-14 new deal amount). */
+export const NEW_DEAL_WINDOW_DAYS = 30;
+
+/**
+ * Deals summary bar (B-14): recalculated for whatever deals the active pipeline, view and filters show.
+ * - total: every deal in view; weightedOpen and open: open deals only; closedWon: won revenue;
+ * - newAmount: deals created in the last 30 days;
+ * - averageAge: mean days from creation to close for closed deals in view ("how long a deal takes to close",
+ *   Cristina, Nov 13); null when no deal in view has closed yet.
+ */
+export function dealSummaryBar(deals, now = new Date()) {
+  const t = today(now);
+  const open = deals.filter(isOpen);
+  const fresh = deals.filter((d) => d.createdAt && dayDiff(d.createdAt, t) <= NEW_DEAL_WINDOW_DAYS);
+  const cycles = deals
+    .filter((d) => !isOpen(d) && d.createdAt)
+    .map((d) => dayDiff(d.createdAt, closedAt(d)))
+    .filter((n) => n >= 0);
+  return {
+    total: sumAmount(deals),
+    weightedOpen: sumWeighted(open),
+    open: sumAmount(open),
+    closedWon: sumAmount(deals.filter((d) => d.stage === 'Closed won')),
+    newAmount: sumAmount(fresh),
+    averageAge: cycles.length ? Math.round(cycles.reduce((a, b) => a + b, 0) / cycles.length) : null,
+  };
+}
+
+/** When a closed deal closed: its last move into a closed stage, else its expected close date. */
+export function closedAt(deal) {
+  const move = [...(deal.stageHistory || [])].reverse().find((h) => h.stage === 'Closed won' || h.stage === 'Closed lost');
+  return move?.at || deal.expectedClose || deal.createdAt;
+}
+
+/** Total and weighted amount for one board column (B-01, L-05). */
+export const columnTotals = (deals) => ({ value: sumAmount(deals), weighted: sumWeighted(deals) });
+
 /** Groups open deals by a key and returns rows sorted by value (L-05). */
 export function groupPipeline(deals, keyFn) {
   const groups = new Map();

@@ -30,21 +30,21 @@ describe('deal stage changes', () => {
   it('append stage history, reset probability and log activity', () => {
     const t = setup();
     const before = t.api.raw('deal', 'd_cascade').stageHistory.length;
-    t.api.update('deal', 'd_cascade', { stage: 'Proposal sent' });
+    t.api.update('deal', 'd_cascade', { stage: 'Verbal Approval' });
     const d = t.api.raw('deal', 'd_cascade');
     expect(d.stageHistory).toHaveLength(before + 1);
-    expect(d.stageHistory.at(-1)).toMatchObject({ stage: 'Proposal sent', by: 'u_russell' });
-    expect(d.probability).toBe(60);
+    expect(d.stageHistory.at(-1)).toMatchObject({ stage: 'Verbal Approval', by: 'u_russell' });
+    expect(d.probability).toBe(80);
     expect(t.state.activities[0]).toMatchObject({ kind: 'stage', dealId: 'd_cascade' });
   });
   it('keep an explicit probability when given', () => {
     const t = setup();
-    t.api.update('deal', 'd_cascade', { stage: 'Proposal sent', probability: 45 });
+    t.api.update('deal', 'd_cascade', { stage: 'Verbal Approval', probability: 45 });
     expect(t.api.raw('deal', 'd_cascade').probability).toBe(45);
   });
   it('new deals start their history at creation', () => {
     const t = setup();
-    const d = t.api.create('deal', { name: 'X', companyId: 'c_vela', stage: 'Qualified', pipeline: 'Consulting projects' });
+    const d = t.api.create('deal', { name: 'X', companyId: 'c_vela', stage: 'Prospect', pipeline: 'Consulting projects' });
     expect(d.stageHistory).toHaveLength(1);
     expect(d.probability).toBe(20);
   });
