@@ -136,6 +136,7 @@ export function renderContractRecord(root, id) {
       'autoRenew',
       'billingModel',
       'paymentTerms',
+      'billingSchedule',
       { label: 'Next invoice date', html: '', tag: 'V2' },
       'ikSignatory',
       'clientSignatory',
@@ -149,6 +150,7 @@ export function renderContractRecord(root, id) {
     tabs: [
       ['overview', 'Overview'],
       ['invoices', 'Invoices'],
+      ['placements', 'Placements'],
       ['files', 'Files'],
     ],
     tab: {
@@ -157,6 +159,8 @@ export function renderContractRecord(root, id) {
         <div class="card placeholder"><div class="cardh"><h2>Invoices</h2><span class="v2">V2</span></div><p style="margin:0" class="small muted">Invoice log, time-to-invoice reminders from billing terms or Buddy Punch hours, and overdue alerts (F-08 to F-10).</p></div>`,
       invoices: () =>
         '<div class="card placeholder"><div class="cardh"><h2>Invoices</h2><span class="v2">V2</span></div><p style="margin:0" class="small muted">Arrives in V2.</p></div>',
+      placements: () =>
+        '<div class="card placeholder"><div class="cardh"><h2>Placements on this contract</h2><span class="v2" style="margin-left:auto">V2</span></div><p style="margin:0" class="small muted">Who is placed under this contract, with dates and hours from Buddy Punch (G-01, G-04).</p></div>',
       files: () =>
         k.fileUrl
           ? `<div class="card"><a href="${esc(k.fileUrl)}" target="_blank" rel="noopener">Open the contract file in SharePoint</a></div>`

@@ -104,6 +104,7 @@ const IMPORT_ROLES = Object.freeze({
   hsContacts: ['admin'],
   hsNotes: ['admin'],
   hsTasks: ['admin'],
+  hsActivities: ['admin'],
 });
 
 /** Whether a user may run a given import preset. */
@@ -338,6 +339,7 @@ export const PRESETS = Object.freeze({
       ['totalValue', 'Total value', ['value', 'total value', 'tcv', 'amount']],
       ['billingModel', 'Billing model', ['billing', 'billing model']],
       ['paymentTerms', 'Payment terms', ['payment terms', 'terms']],
+      ['billingSchedule', 'Billing schedule', ['billing schedule', 'invoice schedule']],
       ['ikSignatory', 'IK signatory', ['ik signatory']],
       ['clientSignatory', 'Client signatory', ['client signatory']],
       ['fileUrl', 'File link', ['file', 'link', 'file link', 'url']],
@@ -362,6 +364,7 @@ export const PRESETS = Object.freeze({
           totalValue: toNumber(r.totalValue) || 0,
           billingModel: pickFrom(BILLING_MODELS, r.billingModel),
           paymentTerms: r.paymentTerms || '',
+          billingSchedule: r.billingSchedule || '',
           ikSignatory: r.ikSignatory || '',
           clientSignatory: r.clientSignatory || '',
           renewalOwnerId: ctx.userId,
@@ -536,6 +539,66 @@ export const PRESETS = Object.freeze({
         { system: true, persist: false },
       );
       ctx.track('note', rec.id, 'created');
+    },
+  },
+  hsActivities: {
+    label: 'HubSpot emails, calls and meetings',
+    object: 'call',
+    fields: [
+      ['type', 'Activity type', ['activity type', 'engagement type', 'type']],
+      ['subject', 'Subject', ['subject', 'title', 'call title', 'email subject', 'meeting name']],
+      ['body', 'Body', ['body', 'call notes', 'email body', 'meeting description', 'description']],
+      ['date', 'Activity date', ['activity date', 'timestamp', 'create date', 'date']],
+      ['duration', 'Duration (minutes)', ['duration', 'call duration', 'duration (minutes)']],
+      ['deal', 'Associated deal', ['associated deal', 'deal']],
+      ['companyName', 'Associated company', ['associated company', 'company']],
+    ],
+    // Slide 21: HubSpot emails and call logs land on the record's timeline. Calls and meetings become logged
+    // calls; emails become notes, since email logging itself arrives in V2.
+    row(ctx, r) {
+      const dealKey = parseDealName(r.deal).name.toLowerCase();
+      const deal = r.deal && ctx.state.deals.find((d) => d.name.toLowerCase() === dealKey || d.name.toLowerCase() === String(r.deal).toLowerCase());
+      const company = deal ? null : ctx.idx.companyByName.get(String(r.companyName || '').toLowerCase());
+      if (!deal && !company) throw new Error('no matching deal or company');
+      const at = createdAtFrom(r.date, ctx.now);
+      const companyId = deal ? deal.companyId : company.id;
+      if (/email/i.test(r.type || '')) {
+        const rec = ctx.api.create(
+          'note',
+          {
+            refType: deal ? 'deal' : 'company',
+            refId: deal ? deal.id : company.id,
+            body: `<p><b>Email: ${esc(r.subject || '(no subject)')}</b></p>${r.body ? `<p>${esc(r.body)}</p>` : ''}`,
+            by: ctx.userId,
+            createdAt: at,
+          },
+          { system: true, persist: false },
+        );
+        ctx.track('note', rec.id, 'created');
+        return;
+      }
+      if (!r.subject && !r.body) throw new Error('empty activity');
+      const rec = ctx.api.create(
+        'call',
+        {
+          title: r.subject || `HubSpot ${String(r.type || 'call').toLowerCase()}`,
+          date: at,
+          durationMin: toNumber(r.duration) || 0,
+          attendees: [],
+          firefliesId: '',
+          dealId: deal?.id || '',
+          companyId,
+          contactIds: [],
+          summary: r.body || '',
+          actionItems: [],
+          transcriptUrl: '',
+          recordingUrl: '',
+          source: 'hubspot',
+          matched: true,
+        },
+        { system: true, persist: false },
+      );
+      ctx.track('call', rec.id, 'created');
     },
   },
   hsTasks: {

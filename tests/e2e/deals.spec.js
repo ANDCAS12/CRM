@@ -105,3 +105,12 @@ test('stage picker still requires a reason before closing', async ({ page }) => 
   await page.getByLabel('Move Vela commercial analytics assessment to stage').selectOption({ index: 8 }); // Closed lost
   await expect(page.getByRole('dialog', { name: 'Close as lost' })).toBeVisible();
 });
+
+test('a deal can be archived and restored from its page (B-02)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/#deal-d_vela');
+  await page.locator('#aBtn').click();
+  await expect.poll(() => api(page, () => window.__ikcrm.ctx.store.state.deals.find((d) => d.id === 'd_vela').archived)).toBe(true);
+  await page.locator('#aBtn').click();
+  await expect.poll(() => api(page, () => window.__ikcrm.ctx.store.state.deals.find((d) => d.id === 'd_vela').archived)).toBe(false);
+});

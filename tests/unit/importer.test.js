@@ -224,3 +224,28 @@ describe('importer rules', () => {
     expect(() => getPreset('nope')).toThrow();
   });
 });
+
+describe('HubSpot emails, calls and meetings (slide 21)', () => {
+  it('puts calls and meetings on the timeline and emails as notes', () => {
+    const t = setup();
+    const r = importCsv(
+      t,
+      'hsActivities',
+      'Activity type,Subject,Body,Activity date,Duration,Associated deal,Associated company\nCall,Pricing follow-up,Dana asked for two options,2026-10-02,25,Northwind Foods_Opp 001_Northwind FP&A modernization,\nEmail,Revised SOW,Attached the redlines,2026-10-03,,,Vela Pharma\nMeeting,QBR,,2026-10-04,60,,Nowhere Inc',
+    );
+    expect(r.created).toBe(2);
+    expect(r.skipped).toEqual(['Row 4: no matching deal or company']);
+    expect(t.state.calls.at(-1)).toMatchObject({ title: 'Pricing follow-up', dealId: 'd_nw_fpa', durationMin: 25, source: 'hubspot', matched: true });
+    expect(t.state.calls.at(-1).date.startsWith('2026-10-02')).toBe(true);
+    expect(t.state.notes.at(-1)).toMatchObject({ refType: 'company', refId: 'c_vela' });
+    expect(t.state.notes.at(-1).body).toContain('Email: Revised SOW');
+  });
+});
+
+describe('contract matrix billing schedule (slide 19)', () => {
+  it('imports the billing schedule column', () => {
+    const t = setup();
+    importCsv(t, 'contracts', 'Contract,Client,Billing schedule\nNew SOW,Northwind Foods,"Monthly, first business day"');
+    expect(t.state.contracts.at(-1)).toMatchObject({ name: 'New SOW', billingSchedule: 'Monthly, first business day' });
+  });
+});

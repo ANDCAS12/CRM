@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.1.0 — Review against the build brief and walkthrough
+
+### Added
+- Referring contact on deals (B-08: "referring partner or contact").
+- Billing schedule on contracts (slide 19), also read by the contract matrix import.
+- HubSpot "emails, calls and meetings" import: calls and meetings join the record timeline, emails become notes (slide 21, M-01).
+- Emails tab on contacts and Placements tab on contracts, labelled V2 (slides 11 and 12).
+
+### Fixed
+- Archive and restore are back on the deal page (B-02).
+- The service line filter matches free text ("contains") now that service line is typed, not picked.
+- Ask Claude's example question says DSaaS instead of staff augmentation.
+- Moving a deal from Partners to Suspect reminds that partner deals usually go to Prospect.
+
 ## 3.0.0 — Central Kitchen
 
 Built from Cristina Frieri's Central Kitchen Build Brief (Nov 13, 2026) and her walkthrough the same day.

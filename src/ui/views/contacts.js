@@ -132,12 +132,15 @@ export function renderContactRecord(root, id) {
       ['overview', 'Overview'],
       ['activities', 'Activities'],
       ['calls', 'Calls'],
+      ['emails', 'Emails'],
     ],
     tab: {
       overview:
         () => `<div class="card"><div class="cardh"><h2>Relationship</h2><span class="v2" style="margin-left:auto" title="Email touches arrive in V2 (D-05)">V2</span></div>
         <div class="grid2"><div><span class="l">Last touch</span><b>${rel.lastTouch ? `${fmtDate(rel.lastTouch).replace(/, \d{4}$/, '')}` : '—'}</b></div><div><span class="l">Strength: ${rel.strength}</span><div class="relbar" aria-label="Relationship strength ${rel.strength}">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= strength ? 'on' : ''}"></i>`).join('')}</div></div></div>
         <p class="small muted" style="margin:10px 0 0">${rel.recent} touches in the last 90 days, from calls and notes. Emails count once email logging arrives.</p></div>${recentActivityHtml(ref)}`,
+      emails: () =>
+        '<div class="card placeholder"><div class="cardh"><h2>Emails</h2><span class="v2" style="margin-left:auto">V2</span></div><p style="margin:0" class="small muted">Emails with this contact are logged automatically once Microsoft 365 is connected (V2).</p></div>',
       calls: () =>
         calls.length
           ? `<ul class="tl">${calls.map((c) => `<li data-kind="call">${callHtml(c, true)}</li>`).join('')}</ul>`

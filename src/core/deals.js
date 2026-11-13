@@ -64,7 +64,13 @@ export function filterDeals(state, deals, f, pipeline = 'All', now = new Date())
     if (f.mine && d.ownerId !== f.mine && !(d.collaborators || []).includes(f.mine)) return false; // "My open deals": owner or collaborator
     if (f.closeYear && String(d.expectedClose || '').slice(0, 4) !== String(f.closeYear)) return false; // A-04 / L-02 close year
     if (f.createdFrom && (d.createdAt || '').slice(0, 10) < f.createdFrom) return false;
-    if (f.serviceLine && d.serviceLine !== f.serviceLine) return false;
+    if (
+      f.serviceLine &&
+      !String(d.serviceLine || '')
+        .toLowerCase()
+        .includes(String(f.serviceLine).toLowerCase())
+    )
+      return false; // free text (Nov 13)
     const c = companies.get(d.companyId) || {};
     if (f.industry && c.industry !== f.industry) return false;
     if (f.icpTier && c.icpTier !== f.icpTier) return false;

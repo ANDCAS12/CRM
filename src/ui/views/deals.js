@@ -84,11 +84,7 @@ function filterPanel() {
       'stage',
       STAGES.map((x) => [x, x]),
       'Stage',
-    )}${sel(
-      'serviceLine',
-      s.serviceLines.map((x) => [x, x]),
-      'Service line',
-    )}${sel(
+    )}${inp('serviceLine', 'text', 'Service line contains')}${sel(
       'industry',
       s.industries.map((x) => [x, x]),
       'Industry',

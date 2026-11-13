@@ -69,6 +69,7 @@ export function fieldDefs(type, state) {
           o: [['', '']].concat(state.companies.filter((c) => c.relationship === 'Partner').map((c) => [c.id, c.name])),
           g: 'Source',
         },
+        { k: 'referringContactId', l: 'Referring contact', t: 'select', o: contactOptions(state), g: 'Source' }, // B-08: referred by a person
         { k: 'primaryContactId', l: 'Primary contact', t: 'select', o: contactOptions(state), g: 'People' },
         { k: 'decisionMakerId', l: 'Decision maker', t: 'select', o: contactOptions(state), g: 'People' },
         { k: 'championId', l: 'Champion', t: 'select', o: contactOptions(state), g: 'People' },
@@ -136,6 +137,7 @@ export function fieldDefs(type, state) {
         { k: 'totalValue', l: 'Total value (USD)', t: 'number', restricted: true, g: 'Commercials' },
         { k: 'billingModel', l: 'Billing model', t: 'select', o: opts(BILLING_MODELS), g: 'Commercials' },
         { k: 'paymentTerms', l: 'Payment terms', t: 'text', ph: 'Net 30', g: 'Commercials' },
+        { k: 'billingSchedule', l: 'Billing schedule', t: 'text', ph: 'Monthly, first business day', g: 'Commercials' }, // slide 19
         { k: 'ikSignatory', l: 'IK signatory', t: 'text', g: 'Parties' },
         { k: 'clientSignatory', l: 'Client signatory', t: 'text', g: 'Parties' },
         { k: 'renewalOwnerId', l: 'Renewal owner', t: 'select', o: [['', '']].concat(userOptions(state)), g: 'Parties' },
