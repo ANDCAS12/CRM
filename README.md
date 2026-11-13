@@ -4,6 +4,12 @@ Pipeline and relationship CRM for Insight Kitchen, replacing HubSpot. This repos
 
 [![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
 
+## Live demo
+
+**https://andcas12.github.io/CRM/**, rebuilt automatically after every merge into `main` (see `.github/workflows/pages.yml`). Demo data only: anyone with the address can open it, and each visitor's changes stay in their own browser.
+
+Outside Claude, exports download as normal files and deal summaries use the local draft (Claude summaries need the production backend).
+
 ## Quick start
 
 Requires Node 20 or 22.

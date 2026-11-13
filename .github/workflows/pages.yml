@@ -1,0 +1,36 @@
+# Publishes the app to GitHub Pages (https://andcas12.github.io/CRM/) after every change to main.
+# Demo data only: anyone with the address can open the site.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # allows a manual redeploy from the Actions tab
+
+permissions:
+  contents: read
+  pages: write # publish to Pages
+  id-token: write # proves the deployment comes from this repository
+
+concurrency:
+  group: pages
+  cancel-in-progress: false # never interrupt a deployment halfway
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: npm ci
+      - run: npm test # never publish a build whose unit tests fail
+      - run: npm run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: dist }
+      - id: deployment
+        uses: actions/deploy-pages@v4

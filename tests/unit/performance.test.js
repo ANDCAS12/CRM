@@ -9,6 +9,11 @@ import { NOW, setup } from './helpers.js';
 
 /** Scale is configurable so CI can run a heavier nightly job (STRESS_SCALE=5). */
 const SCALE = Number(process.env.STRESS_SCALE || 1);
+/** 100x = 1M contacts and 500k deals, far beyond what the browser prototype can store. Above that the test only measures the machine. */
+const MAX_SCALE = 100;
+if (!Number.isFinite(SCALE) || SCALE < 1 || SCALE > MAX_SCALE) {
+  throw new Error(`STRESS_SCALE must be a number from 1 to ${MAX_SCALE} (got "${process.env.STRESS_SCALE}").`); // clear message instead of an out-of-memory crash
+}
 const time = (fn) => {
   const t0 = performance.now();
   const out = fn();
@@ -16,7 +21,7 @@ const time = (fn) => {
 };
 
 describe(`performance at scale x${SCALE}`, () => {
-  const t = setup(() => createLargeSeed({ companies: 1000 * SCALE, contacts: 10000 * SCALE, deals: 5000 * SCALE }, NOW));
+  const t = setup(() => createLargeSeed({ companies: 1000 * SCALE, contacts: 10000 * SCALE, deals: 5000 * SCALE }, NOW), { persist: false });
   it('filters thousands of deals quickly', () => {
     const deals = t.api.all('deal');
     const [out, ms] = time(() => filterDeals(t.state, deals, { openOnly: true, minAmt: 100000, q: 'load' }, 'All', NOW));

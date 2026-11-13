@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.0
+
+### Added
+- Hosting on GitHub Pages at https://andcas12.github.io/CRM/, deployed automatically from `main` after unit tests pass.
+- Exports and import templates download as normal browser files when the app runs outside Claude.
+
+### Fixed
+- Nightly stress run crashed with "JavaScript heap out of memory" when started with a very large scale (around 300×). Scale and repeat are now dropdowns, the test rejects values above 100 with a clear message, stress tests no longer keep a serialised copy of the dataset, and the job allows 6 GB of memory.
+
 ## 2.0.1
 
 ### Fixed
