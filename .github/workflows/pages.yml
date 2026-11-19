@@ -30,7 +30,7 @@ jobs:
       - run: npm test # never publish a build whose unit tests fail
       - run: npm run build
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with: { path: dist }
       - id: deployment
         uses: actions/deploy-pages@v4
