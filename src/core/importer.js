@@ -28,6 +28,7 @@ import { addDays, today, toISODate } from '../utils/dates.js';
 import { domainOf, esc, normalizeDomain } from '../utils/format.js';
 import { PermissionError } from './errors.js';
 import { findUser } from './lookups.js';
+import { mapIndustry } from './industries.js';
 
 /**
  * IK's HubSpot stages carry over one to one (build brief, slide 20). Keys are lower-cased labels
@@ -126,9 +127,14 @@ const COMPANY_COLS = [
   ['companyName', 'Company name', ['company', 'company name', 'associated company']],
   ['domain', 'Company domain name', ['domain', 'company domain name', 'website', 'website url']],
   ['industry', 'Industry', ['industry']],
-  ['hq', 'HQ location', ['hq', 'company city', 'hq location']],
+  ['hq', 'HQ location', ['hq', 'hq location']],
   ['employees', 'Employees', ['employees', 'number of employees']],
   ['relationship', 'Relationship type', ['relationship', 'type', 'lifecycle stage']],
+  ['city', 'City', ['city', 'company city']],
+  ['state', 'State', ['state', 'state/region']],
+  ['postalCode', 'Postal code', ['postal code', 'zip', 'zip code']],
+  ['description', 'Company description', ['company description', 'description']],
+  ['linkedin', 'LinkedIn company page', ['linkedin company page', 'linkedin_company_page', 'linkedin page']],
 ];
 
 /**
@@ -204,6 +210,36 @@ function tagBuyingRoles(ctx, contactId, dealNames, role) {
   }
 }
 
+/** Finds the deal's associated contact by email or name; an unknown email creates the contact (M-01). */
+function dealContact(ctx, value, companyId) {
+  const v = String(value).trim();
+  const found = ctx.state.contacts.find((p) => (p.email && p.email.toLowerCase() === v.toLowerCase()) || p.name.toLowerCase() === v.toLowerCase());
+  if (found) return found.id;
+  const email = /@/.test(v) ? v.toLowerCase() : '';
+  const rec = ctx.api.create(
+    'contact',
+    {
+      name: email
+        ? email
+            .split('@')[0]
+            .replace(/[._]/g, ' ')
+            .replace(/\b\w/g, (m) => m.toUpperCase())
+        : v,
+      email,
+      title: '',
+      phone: '',
+      companyId,
+      ownerId: ctx.userId,
+      source: '',
+      doNotContact: false,
+    },
+    { system: true, persist: false },
+  );
+  ctx.track('contact', rec.id, 'created');
+  ctx.note(`Contact “${v}” created for a deal; complete their details`);
+  return rec.id;
+}
+
 /* ---------- row handlers ---------- */
 
 /** Creates or updates a company from row values; returns its id. */
@@ -225,14 +261,20 @@ function upsertCompany(ctx, r) {
   const data = {
     name,
     domain,
-    industry: r.industry || '',
+    industry: mapIndustry(r.industry), // the 11 IK industries (M-01)
+    subIndustry: r.industry && !mapIndustry(r.industry) ? String(r.industry) : '', // unmapped value kept as sub-industry
     hq: r.hq || [r.city, r.country].filter(Boolean).join(', '),
+    city: r.city || '',
+    state: r.state || '',
+    postalCode: r.postalCode || '',
+    description: r.description || '',
+    linkedinUrl: r.linkedin || '',
     employees: toNumber(r.employees),
     relationship,
     icpTier: icpTierFrom(r.icp),
     revenueBand: revenueBandFrom(r.revenue),
   };
-  if (r.industry && !ctx.state.settings.industries.includes(r.industry)) ctx.note(`Industry “${r.industry}” kept as text`);
+  if (r.industry && !mapIndustry(r.industry)) ctx.note(`Industry “${r.industry}” matches none of the 11 IK industries; kept as sub-industry`);
   if (existing) {
     if (ctx.mode !== 'upsert') return existing.id; // create-only mode links to the existing company without changing it
     const patch = buildPatch(existing, data, ctx.noOverwrite);
@@ -387,6 +429,7 @@ export const PRESETS = Object.freeze({
       ['probability', 'Probability', ['deal probability', 'hs_deal_stage_probability', 'probability']],
       ['owner', 'Deal owner', ['deal owner', 'hubspot_owner_id', 'owner', 'hubspot owner']],
       ['companyName', 'Associated company', ['associated company', 'company', 'company name']],
+      ['contact', 'Associated contact', ['associated contact', 'contact', 'primary contact', 'contact email']],
       ['created', 'Create date', ['create date', 'createdate', 'created date', 'created at']],
       ['source', 'Source', ['original source', 'source', 'deal source']],
       ['nextStep', 'Next step', ['next step', 'hs_next_step']],
@@ -407,6 +450,9 @@ export const PRESETS = Object.freeze({
       )
         throw new Error('Test Pipeline, not migrated'); // slide 20
       const parsed = parseDealName(r.name); // Company_Opp NNN_Description
+      // Every migrated deal needs a company and a primary contact (B-02, M-01); owners fix gaps in HubSpot first.
+      if (!r.companyName && !parsed.company) throw new Error('no associated company: link one in HubSpot, then export again');
+      if (!r.contact) throw new Error('no associated contact: link one in HubSpot, then export again');
       let stage = mapHubSpotStage(r.stage) || pickFrom(STAGES, r.stage);
       if (!stage) {
         stage = DEFAULT_STAGE;
@@ -419,6 +465,8 @@ export const PRESETS = Object.freeze({
       if (!pickFrom(PIPELINES, pl) && !LEGACY_PIPELINE_MAP[pl]) ctx.note(`Pipeline assigned from deal wording; check “${parsed.name}” is in ${pipeline}`);
       const owner = findUser(ctx.state, r.owner);
       if (r.owner && !owner) ctx.note(`Owner “${r.owner}” not found; assigned to you`);
+      const companyId = upsertCompany(ctx, { companyName: r.companyName || parsed.company });
+      const contactId = dealContact(ctx, r.contact, companyId);
       const ownerId = owner?.id || ctx.userId;
       const createdAt = createdAtFrom(r.created, ctx.now); // preserve HubSpot created date
       const open = !CLOSED_STAGES.includes(stage);
@@ -432,7 +480,8 @@ export const PRESETS = Object.freeze({
         'deal',
         {
           name: parsed.name,
-          companyId: upsertCompany(ctx, { companyName: r.companyName || parsed.company || 'Unknown company' }),
+          companyId,
+          primaryContactId: contactId,
           ownerId,
           pipeline,
           stage,
@@ -446,7 +495,6 @@ export const PRESETS = Object.freeze({
           serviceLine: '',
           source: pickFrom(SOURCES, r.source),
           referringPartnerId: '',
-          primaryContactId: '',
           decisionMakerId: '',
           championId: '',
           nextStep: r.nextStep || (open ? 'Review imported deal' : ''),
@@ -486,7 +534,11 @@ export const PRESETS = Object.freeze({
       ['employees', 'Number of employees', ['number of employees', 'numberofemployees']],
       ['revenue', 'Annual revenue', ['annual revenue', 'annualrevenue']],
       ['city', 'City', ['city']],
+      ['state', 'State/Region', ['state/region', 'state']],
+      ['postalCode', 'Postal code', ['postal code', 'zip']],
       ['country', 'Country/Region', ['country/region', 'country']],
+      ['description', 'Description', ['description', 'about us']],
+      ['linkedin', 'LinkedIn company page', ['linkedin company page', 'linkedin_company_page']],
     ],
     row: (ctx, r) => {
       if (!upsertCompany(ctx, r)) throw new Error('no company name or domain');
@@ -610,9 +662,11 @@ export const PRESETS = Object.freeze({
       ['assignee', 'Assigned to', ['assigned to', 'task owner', 'owner']],
       ['status', 'Status', ['status', 'task status']],
       ['deal', 'Associated deal', ['associated deal', 'deal']],
+      ['type', 'Task type', ['task type', 'type', 'hs_task_type']],
     ],
     row(ctx, r) {
       if (!r.title) throw new Error('no title');
+      const type = /call/i.test(r.type || '') ? 'Call' : /email/i.test(r.type || '') ? 'Email' : 'To-do'; // HubSpot CALL / EMAIL / TODO
       const deal = r.deal && ctx.state.deals.find((d) => d.name.toLowerCase() === String(r.deal).toLowerCase());
       if (r.deal && !deal) ctx.note(`Deal “${r.deal}” not found; task left unlinked`);
       const due = toISODate(r.due) || today(ctx.now);
@@ -620,6 +674,7 @@ export const PRESETS = Object.freeze({
         'task',
         {
           title: r.title,
+          type,
           dueDate: due,
           assigneeId: findUser(ctx.state, r.assignee)?.id || ctx.userId,
           reminderDate: due,

@@ -113,7 +113,8 @@ export function renderDealRecord(root, id) {
       'pipeline',
       'expectedClose',
       'ownerId',
-      'serviceLine',
+      'serviceLines',
+      'primaryContactId',
       'dealType',
       'priority',
       'source',
@@ -131,7 +132,7 @@ export function renderDealRecord(root, id) {
       },
       'folderUrl',
     ],
-    center: progressHtml(deal, now),
+    center: `${deal.primaryContactId ? '' : '<div class="banner" role="alert">This deal has no primary contact. Every deal needs one (B-02): pick it under Primary contact in About.</div>'}${progressHtml(deal, now)}`,
     tabs: [
       ['overview', 'Overview'],
       ['activities', 'Activities'],
@@ -152,7 +153,9 @@ export function renderDealRecord(root, id) {
               .map(
                 ([n, k, d]) => `<li><span class="ic" aria-hidden="true"></span><span class="tx"><b>${esc(n)}</b><span>${k} · ${d} days ago</span></span></li>`,
               )
-              .join('')}</ul><p class="small faint">Sample file list until Microsoft Graph is connected (J-01).</p></div>`
+              .join(
+                '',
+              )}</ul><p class="small faint">Sample file list until Microsoft Graph is connected (J-01).</p></div><div class="card placeholder"><div class="cardh"><h2>Deal documents</h2><span class="v2" style="margin-left:auto">V2</span></div><p style="margin:0" class="small muted">Documents grouped by type with versions, one-click new version named by convention, financials version summary and lifecycle from draft to PO received (J-05 to J-07, I-09).</p></div>`
           : '<div class="empty">No SharePoint folder linked.</div>',
     },
     right,

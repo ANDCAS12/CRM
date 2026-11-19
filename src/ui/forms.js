@@ -19,8 +19,21 @@ export function inputHtml(f, value, disabled = false) {
   if (f.t === 'select')
     return `<select class="f" id="${id}" name="${f.k}"${dis}${req}>${f.o.map(([v, l]) => `<option value="${esc(v)}"${String(value ?? '') === String(v) ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   if (f.t === 'multi') {
-    const set = new Set(value || []);
-    return `<select class="f" multiple id="${id}" name="${f.k}"${dis}>${f.o.map(([v, l]) => `<option value="${esc(v)}"${set.has(v) ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+    const sel = new Set(Array.isArray(value) ? value : []);
+    const opt = ([v, l]) => `<option value="${esc(v)}"${sel.has(v) ? ' selected' : ''}>${esc(l)}</option>`;
+    // Grouped lists (service lines: category › service) render one <optgroup> per category.
+    const body = f.groups
+      ? f.groups
+          .map(
+            (g) =>
+              `<optgroup label="${esc(g)}">${f.o
+                .filter(([v]) => v.startsWith(`${g} › `))
+                .map(opt)
+                .join('')}</optgroup>`,
+          )
+          .join('')
+      : f.o.map(opt).join('');
+    return `<select class="f" id="${id}" name="${f.k}" multiple${f.groups ? ' size="10"' : ''}${dis}>${body}</select>${f.groups ? '<div class="small faint" style="margin-top:4px">Ctrl or Cmd + click to pick several services.</div>' : ''}`;
   }
   if (f.t === 'check') return `<label class="chk"><input type="checkbox" id="${id}" name="${f.k}"${value ? ' checked' : ''}${dis}> ${esc(f.l)}</label>`;
   if (f.t === 'textarea') return `<textarea class="f" id="${id}" name="${f.k}"${dis}>${esc(value)}</textarea>`;
@@ -70,6 +83,13 @@ export function readForm(type, root, { only } = {}) {
 export function displayValue(f, value) {
   if (value === '' || value === null || value === undefined || (Array.isArray(value) && !value.length)) return '—';
   if (f.t === 'select') return esc(f.o.find(([v]) => String(v) === String(value))?.[1] ?? value);
+  if (f.t === 'multi' && f.groups) {
+    // "Operational AI (2 services)", with the full list on hover (deal record mockup).
+    const by = f.groups.map((g) => [g, value.filter((v) => v.startsWith(`${g} › `))]).filter(([, l]) => l.length);
+    return by
+      .map(([g, l]) => `<span title="${esc(l.map((v) => v.split(' › ')[1]).join(', '))}">${esc(g)} (${l.length} service${l.length > 1 ? 's' : ''})</span>`)
+      .join('<br>');
+  }
   if (f.t === 'multi') return esc(value.map((v) => f.o.find(([o]) => o === v)?.[1] ?? v).join(', '));
   if (f.t === 'check') return value ? 'Yes' : 'No';
   if (f.t === 'url')

@@ -71,6 +71,33 @@ describe('migrate', () => {
     expect(out.users.map((u) => u.status)).toEqual(['active', 'deactivated']);
     expect(out.savedViews[0].objectType).toBe('deal');
     expect(Array.isArray(out.imports)).toBe(true);
-    expect(out.version).toBe(3);
+    expect(out.version).toBe(4);
+  });
+  it('v4 (Nov 18): service lines, industries, task types, no preset views', () => {
+    const out = migrate({
+      version: 3,
+      deals: [
+        { id: 'a', stage: 'Prospect', pipeline: 'Consulting projects', serviceLine: 'Data Engineering & Pipeline Design' },
+        { id: 'b', stage: 'Prospect', pipeline: 'Consulting projects', serviceLine: 'Data science as a service' },
+        { id: 'c', stage: 'Prospect', pipeline: 'Consulting projects', serviceLine: 'Something else' },
+      ],
+      companies: [
+        { id: 'x', industry: 'Food and beverage' },
+        { id: 'y', industry: 'Insurance' },
+      ],
+      tasks: [{ id: 't' }],
+      savedViews: [
+        { id: 'sv_2', objectType: 'contact' },
+        { id: 'mine1', objectType: 'deal' },
+      ],
+      settings: { industries: ['old'], serviceLines: ['old'] },
+    });
+    expect(out.deals.map((d) => d.serviceLines)).toEqual([['Operational AI › Data Engineering & Pipeline Design'], ['Operational AI › DSaaS'], []]);
+    expect(out.deals[2].serviceLineLegacy).toBe('Something else'); // never silently lost
+    expect(out.companies[0].industry).toBe('CPG');
+    expect(out.companies[1]).toMatchObject({ industry: '', subIndustry: 'Insurance' });
+    expect(out.tasks[0].type).toBe('To-do');
+    expect(out.savedViews.map((v) => v.id)).toEqual(['mine1']); // "Data leaders" (sv_2) removed
+    expect(out.settings.industries).toBeUndefined();
   });
 });

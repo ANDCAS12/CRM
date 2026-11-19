@@ -12,14 +12,17 @@ test('deal page shows stage progress, auto summary with sources, and edits in pl
   await expect.poll(() => api(page, () => window.__ikcrm.ctx.store.state.deals.find((d) => d.id === 'd_nw_fpa').nextStep)).toBe('Send revised pricing');
 });
 
-test('service line is free text with suggestions', async ({ page }) => {
+test('service lines are a multi-select by category (Nov 18)', async ({ page }) => {
   await signIn(page);
   await page.goto('/#deal-d_nw_fpa');
-  await page.getByRole('button', { name: 'Edit Service line' }).click();
-  await expect(page.locator('.about input[list]')).toBeVisible();
-  await page.locator('.about input[list]').fill('AI roadmap for finance');
-  await page.locator('.about input[list]').press('Enter');
-  await expect.poll(() => api(page, () => window.__ikcrm.ctx.store.state.deals.find((d) => d.id === 'd_nw_fpa').serviceLine)).toBe('AI roadmap for finance');
+  await expect(page.locator('.about')).toContainText('Business Consulting (2 services)');
+  await page.getByRole('button', { name: 'Edit Service lines' }).click();
+  const sel = page.locator('.about select[multiple]');
+  await expect(sel.locator('optgroup')).toHaveCount(3);
+  await sel.selectOption(['Operational AI › DSaaS', 'AI Realization › Data Science Team Coaching']); // saves on change
+  await expect
+    .poll(() => api(page, () => window.__ikcrm.ctx.store.state.deals.find((d) => d.id === 'd_nw_fpa').serviceLines))
+    .toEqual(['Operational AI › DSaaS', 'AI Realization › Data Science Team Coaching']);
 });
 
 test('properties panel searches and edits, and the change shows under property changes', async ({ page }) => {

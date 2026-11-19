@@ -11,13 +11,16 @@ import { esc, fmtDate, kmoney, money } from '../../utils/format.js';
 import { renderRecordPage, sideCard } from '../components/recordPage.js';
 import { contractForm, exportRows, refLink } from '../actions.js';
 import { ctx, state } from '../context.js';
-import { $ } from '../dom.js';
+import { $, $$, modal } from '../dom.js';
 import { openImportDialog } from '../components/importDialog.js';
 
 export function renderContracts(root) {
   const now = ctx.now();
   const all = ctx.api.all('contract');
+  const view = ctx.ui.contractView || 'all';
+  const views = state().savedViews.filter((v) => v.objectType === 'contract' && (v.shared || v.ownerId === ctx.user.id));
   const list = all
+    .filter((k) => view !== 'mine' || k.renewalOwnerId === ctx.user.id) // "My contracts": I own the renewal
     .filter((k) => !ctx.ui.contractStatus || k.status === ctx.ui.contractStatus)
     .sort((a, b) => (a.endDate || '9999').localeCompare(b.endDate || '9999')); // undated last
   const alerts = contractAlerts(all, now);
@@ -26,6 +29,12 @@ export function renderContracts(root) {
   root.innerHTML = `<div class="pagehead"><div><h1>Contracts</h1><div class="sub">${list.length} contracts${see ? '' : ' · values are restricted for your role'}</div></div><div class="sp"></div>
     <select class="f" id="kS" style="width:auto" aria-label="Status filter"><option value="">All statuses</option>${CONTRACT_STATUSES.map((s) => `<option${ctx.ui.contractStatus === s ? ' selected' : ''}>${s}</option>`).join('')}</select>
     ${canImport(ctx.user, 'contracts') ? '<button class="btn" id="impK">Import contract matrix</button>' : ''}<button class="btn" id="expK">Export CSV</button>${canEdit(ctx.user, 'contract', null) ? '<button class="btn pri" id="newK">Create contract</button>' : ''}</div>
+  <div class="viewtabs" role="tablist" aria-label="Contract views">
+    <button class="v ${view === 'all' ? 'on' : ''}" data-kv="all" role="tab">All contracts</button>
+    <button class="v ${view === 'mine' ? 'on' : ''}" data-kv="mine" role="tab">My contracts</button>
+    ${views.map((v) => `<button class="v ${view === v.id ? 'on' : ''}" data-kv="${v.id}" role="tab">${esc(v.name)}</button>`).join('')}
+    <button class="add" id="kSave" aria-label="Save view">+ Save view</button>
+  </div>
   <div class="stats" style="grid-template-columns:repeat(3,1fr)">${[30, 60, 90]
     .map(
       (n) =>
@@ -45,6 +54,36 @@ export function renderContracts(root) {
     .join('')}</tbody></table>${list.length ? '' : '<div class="empty">No contracts with this status.</div>'}</div>`;
 
   $('#kS', root).onchange = (e) => ((ctx.ui.contractStatus = e.target.value), ctx.render());
+  $$('[data-kv]', root).forEach(
+    (b) =>
+      (b.onclick = () => {
+        const v = views.find((x) => x.id === b.dataset.kv);
+        ctx.ui.contractView = b.dataset.kv;
+        ctx.ui.contractStatus = v ? v.filters?.status || '' : '';
+        ctx.render();
+      }),
+  );
+  $('#kSave', root).onclick = () =>
+    modal(
+      'Save view',
+      '<label class="l" for="svName">Name</label><input class="f" id="svName" placeholder="e.g. Contracts in redlines"><p class="small muted">Saves the status filter you have chosen.</p><label class="chk"><input type="checkbox" id="svShared" checked> Share with the team</label>',
+      {
+        saveLabel: 'Save view',
+        onSave: (body) => {
+          const name = $('#svName', body).value.trim();
+          if (!name) throw new Error('Name the view.');
+          const v = ctx.api.create('savedView', {
+            objectType: 'contract',
+            name,
+            filters: { status: ctx.ui.contractStatus || '' },
+            ownerId: ctx.user.id,
+            shared: $('#svShared', body).checked,
+          });
+          ctx.ui.contractView = v.id;
+          ctx.render();
+        },
+      },
+    );
   $('#newK', root)?.addEventListener('click', () => contractForm());
   $('#impK', root)?.addEventListener('click', () => openImportDialog('contracts'));
   $('#expK', root).onclick = () =>

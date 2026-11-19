@@ -5,6 +5,7 @@
  */
 import { CLOSED_STAGES, STAGES } from '../../config/constants.js';
 import { contractAlerts, pipelineSummary } from '../../core/reports.js';
+import { dealYears } from '../../core/deals.js';
 import { companyName, dealName, userName } from '../../core/lookups.js';
 import { addDays, dayDiff, today } from '../../utils/dates.js';
 import { esc, fmtDate, kmoney } from '../../utils/format.js';
@@ -74,7 +75,7 @@ export function renderDashboard(root) {
   const ui = ctx.ui;
   const mine = ui.dashScope === 'mine';
   const all = ctx.api.all('deal');
-  const years = [...new Set(all.map((d) => (d.expectedClose || '').slice(0, 4)).filter(Boolean))].sort();
+  const years = dealYears(all, now); // 2025 onward, plus future years that have deals (A-04)
   if (ui.dashYear === undefined) ui.dashYear = years.includes(t.slice(0, 4)) ? t.slice(0, 4) : ''; // default: this year
   const deals = all.filter(
     (d) =>
@@ -104,7 +105,7 @@ export function renderDashboard(root) {
 
   root.innerHTML = `<div class="pagehead"><h1>Good ${greeting(now)}, ${esc(ctx.user.name.split(' ')[0])}</h1><div class="sp"></div>
     <div class="seg" role="group" aria-label="Deal scope"><button data-scope="mine" class="${mine ? 'on' : ''}" aria-pressed="${mine}">My deals</button><button data-scope="team" class="${!mine ? 'on' : ''}" aria-pressed="${!mine}">Whole team</button></div>
-    <select class="fsel" id="dashYear" aria-label="Close year"><option value="">Close year: all</option>${years.map((y) => `<option value="${y}"${ui.dashYear === y ? ' selected' : ''}>Close year: ${y}</option>`).join('')}</select></div>
+    <select class="fsel" id="dashYear" aria-label="Close year"><option value="">Close year: All</option>${years.map((y) => `<option value="${y}"${ui.dashYear === y ? ' selected' : ''}>Close year: ${y}</option>`).join('')}</select></div>
   <div class="stats">
     <div class="stat"><div class="k">Open pipeline</div><div class="v">${kmoney(s.open)}</div><div class="k">${s.openCount} open deals</div></div>
     <div class="stat"><div class="k">Weighted pipeline</div><div class="v">${kmoney(s.weighted)}</div><div class="k">${pct}% of open value</div></div>

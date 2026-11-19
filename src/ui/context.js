@@ -22,7 +22,7 @@ export const ctx = {
     collapsed: new Set(), // collapsed board columns
     dashScope: 'mine', // A-04
     callsTab: 'inbox',
-    tasksTab: 'mine',
+    tasks: { view: 'mine', quick: 'all', f: {} }, // Tasks page state (E-08)
     adminTab: 'users',
     contractStatus: '',
     reportPipeline: '',

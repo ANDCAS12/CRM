@@ -20,7 +20,7 @@ import { renderContacts, renderContactRecord } from './views/contacts.js';
 import { renderTasks } from './views/tasks.js';
 import { renderContractRecord, renderContracts } from './views/contracts.js';
 import { renderCalls } from './views/calls.js';
-import { renderReports } from './views/reports.js';
+import { renderDashboards } from './views/dashboards.js';
 import { renderAdmin } from './views/admin.js';
 import { renderPlacements } from './views/placements.js';
 import { openAskClaude } from './components/askClaude.js';
@@ -32,17 +32,18 @@ const NAV = [
   ['deals', 'Deals', 'deals', ['admin', 'gtm', 'delivery', 'finance']],
   ['companies', 'Companies', 'co', ['admin', 'gtm', 'delivery', 'finance']],
   ['contacts', 'Contacts', 'ct', ['admin', 'gtm', 'delivery']],
+  ['tasks', 'Tasks', 'task', ['admin', 'gtm', 'delivery']], // E-08: Tasks in the navigation
   ['contracts', 'Contracts', 'k', ['admin', 'gtm', 'delivery', 'finance']],
   ['placements', 'Placements', 'list', ['admin', 'gtm', 'delivery', 'finance'], 'V2'],
   ['calls', 'Calls', 'call', ['admin', 'gtm']],
-  ['reports', 'Reports', 'rep', ['admin', 'gtm', 'delivery', 'finance']],
+  ['dashboards', 'Dashboards', 'rep', ['admin', 'gtm', 'delivery', 'finance']], // L-12: Reports is now Dashboards
 ];
 
 /** Pages reachable by link but not listed in the menu. */
-const HIDDEN_PAGES = { tasks: ['admin', 'gtm', 'delivery'], admin: ['admin', 'gtm', 'delivery', 'finance'] };
+const HIDDEN_PAGES = { admin: ['admin', 'gtm', 'delivery', 'finance'] };
 
 /** Record page routes map to their index page for nav highlighting; "dashboard" is the old name for home. */
-const RECORD_ROUTES = { deal: 'deals', company: 'companies', contact: 'contacts', contract: 'contracts', dashboard: 'home' };
+const RECORD_ROUTES = { deal: 'deals', company: 'companies', contact: 'contacts', contract: 'contracts', dashboard: 'home', reports: 'dashboards' };
 
 /** Route table: hash prefix -> renderer(root, id). "admin" is labelled Settings ("settings" is reserved by claude.ai). */
 const ROUTES = {
@@ -59,7 +60,8 @@ const ROUTES = {
   contract: renderContractRecord,
   placements: renderPlacements,
   calls: renderCalls,
-  reports: renderReports,
+  dashboards: renderDashboards,
+  reports: renderDashboards, // old links keep working
   admin: renderAdmin,
 };
 

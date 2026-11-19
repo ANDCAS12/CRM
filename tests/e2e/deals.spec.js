@@ -9,6 +9,9 @@ test('new deals start in Suspect, require a next step, then open on their page',
   await page.locator('#f_name').fill('E2E deal');
   await page.locator('#f_companyId').selectOption('c_vela');
   await page.locator('#mSave').click();
+  await expect(page.locator('#mErr')).toHaveText('Every deal needs a primary contact.'); // B-02 (Nov 18)
+  await page.locator('#f_primaryContactId').selectOption('p_omar');
+  await page.locator('#mSave').click();
   await expect(page.locator('#mErr')).toHaveText('Every open deal needs a next step and a date.');
   await page.locator('#f_nextStep').fill('Call Omar');
   await page.locator('#f_nextStepDate').fill('2030-01-15');
@@ -60,13 +63,13 @@ test('summary bar, column totals, collapsible columns and board search', async (
   await expect(page.locator('.dc')).toHaveCount(1);
 });
 
-test('saved view tabs apply filters', async ({ page }) => {
+test('All and My deals tabs (L-03)', async ({ page }) => {
   await signIn(page, 'gtm');
   await page.goto('/#deals');
-  await page.getByRole('tab', { name: /My open deals/ }).click();
+  await page.getByRole('tab', { name: 'My deals' }).click();
   const owners = await page.locator('.dc').evaluateAll((cards) => cards.length);
   expect(owners).toBeGreaterThan(0);
-  await expect(page.getByRole('tab', { name: /My open deals/ })).toHaveClass(/on/);
+  await expect(page.getByRole('tab', { name: 'My deals' })).toHaveClass(/on/);
 });
 
 test('table: click-to-edit amount and bulk change owner', async ({ page }) => {

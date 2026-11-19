@@ -11,6 +11,11 @@
 import {
   BILLING_MODELS,
   DEAL_TYPES,
+  INDUSTRIES,
+  SERVICE_CATEGORIES,
+  SERVICE_OPTIONS,
+  SERVICE_SEP,
+  TASK_TYPES,
   PRIORITIES,
   BUYING_ROLES,
   CONTRACT_STATUSES,
@@ -44,7 +49,6 @@ const contactOptions = (state) => [['', '']].concat(state.contacts.map((c) => [c
  * @param {object} state dataset (for dynamic options)
  */
 export function fieldDefs(type, state) {
-  const s = state.settings;
   switch (type) {
     case 'deal':
       return [
@@ -60,7 +64,14 @@ export function fieldDefs(type, state) {
         { k: 'expectedClose', l: 'Expected close date', t: 'date', g: 'Value and timing' },
         { k: 'expectedStart', l: 'Expected start date', t: 'date', g: 'Value and timing' },
         { k: 'durationMonths', l: 'Duration (months)', t: 'number', g: 'Value and timing' },
-        { k: 'serviceLine', l: 'Service line', t: 'text', suggest: s.serviceLines, ph: 'e.g. Optimization', g: 'Deal information' },
+        {
+          k: 'serviceLines',
+          l: 'Service lines',
+          t: 'multi',
+          o: SERVICE_OPTIONS.map((v) => [v, v.split(SERVICE_SEP)[1]]),
+          groups: SERVICE_CATEGORIES,
+          g: 'Deal information',
+        }, // category › service, multi-select (Nov 18)
         { k: 'source', l: 'Source', t: 'select', o: opts(SOURCES), g: 'Source' },
         {
           k: 'referringPartnerId',
@@ -70,7 +81,7 @@ export function fieldDefs(type, state) {
           g: 'Source',
         },
         { k: 'referringContactId', l: 'Referring contact', t: 'select', o: contactOptions(state), g: 'Source' }, // B-08: referred by a person
-        { k: 'primaryContactId', l: 'Primary contact', t: 'select', o: contactOptions(state), g: 'People' },
+        { k: 'primaryContactId', l: 'Primary contact', t: 'select', o: contactOptions(state), req: true, g: 'People' }, // required on every deal (B-02)
         { k: 'decisionMakerId', l: 'Decision maker', t: 'select', o: contactOptions(state), g: 'People' },
         { k: 'championId', l: 'Champion', t: 'select', o: contactOptions(state), g: 'People' },
         { k: 'nextStep', l: 'Next step', t: 'text', full: true, g: 'Next step' },
@@ -87,9 +98,14 @@ export function fieldDefs(type, state) {
         { k: 'domain', l: 'Company domain name', t: 'text', ph: 'example.com', g: 'Company information' },
         { k: 'ownerId', l: 'Account owner', t: 'select', o: userOptions(state, true), g: 'Company information' },
         { k: 'relationship', l: 'Relationship type', t: 'select', o: opts(RELATIONSHIP_TYPES, false), req: true, g: 'Company information' },
-        { k: 'industry', l: 'Industry', t: 'select', o: opts(s.industries), g: 'Firmographics' },
+        { k: 'industry', l: 'Industry', t: 'select', o: opts(INDUSTRIES), g: 'Firmographics' },
         { k: 'subIndustry', l: 'Sub-industry', t: 'text', g: 'Firmographics' },
         { k: 'hq', l: 'HQ location', t: 'text', g: 'Firmographics' },
+        { k: 'city', l: 'City', t: 'text', g: 'Location' }, // new company fields (Nov 18); Claude fills them in V2 (C-08)
+        { k: 'state', l: 'State', t: 'text', g: 'Location' },
+        { k: 'postalCode', l: 'Postal code', t: 'text', g: 'Location' },
+        { k: 'linkedinUrl', l: 'LinkedIn company page', t: 'url', g: 'Company information' },
+        { k: 'description', l: 'Company description', t: 'textarea', full: true, g: 'Company information' },
         { k: 'employees', l: 'Employees', t: 'number', g: 'Firmographics' },
         { k: 'revenueBand', l: 'Revenue band', t: 'select', o: opts(REVENUE_BANDS), g: 'Firmographics' },
         { k: 'ownership', l: 'Ownership', t: 'select', o: opts(OWNERSHIP_TYPES), g: 'Ownership' },
@@ -146,6 +162,7 @@ export function fieldDefs(type, state) {
     case 'task':
       return [
         { k: 'title', l: 'Task', t: 'text', req: true, full: true },
+        { k: 'type', l: 'Type', t: 'select', o: opts(TASK_TYPES, false), req: true }, // call, email, to-do (E-02)
         { k: 'dueDate', l: 'Due date', t: 'date', req: true },
         { k: 'assigneeId', l: 'Assignee', t: 'select', o: userOptions(state), req: true },
         { k: 'reminderDate', l: 'Reminder date', t: 'date' },

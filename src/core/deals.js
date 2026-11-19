@@ -1,7 +1,7 @@
 /**
  * @file Deal rules: weighting, validation, filtering and export (B, L-02, L-04).
  */
-import { CLOSED_STAGES } from '../config/constants.js';
+import { CLOSED_STAGES, FIRST_DEAL_YEAR, serviceCategory } from '../config/constants.js';
 import { dayDiff, today } from '../utils/dates.js';
 import { ValidationError } from './errors.js';
 import { companyName, userName } from './lookups.js';
@@ -35,12 +35,24 @@ export const nextStepOverdue = (deal, now = new Date()) => isOpen(deal) && (!dea
 export function validateDeal(deal) {
   if (!deal.name) throw new ValidationError('Give the deal a name.');
   if (!deal.companyId) throw new ValidationError('Pick a company.');
+  if (!deal.primaryContactId) throw new ValidationError('Every deal needs a primary contact.'); // B-02: company and primary contact on every deal
   if (CLOSED_STAGES.includes(deal.stage)) {
     if (!deal.winLossReason) throw new ValidationError('Closing a deal needs a win or loss reason.');
     if (deal.stage === 'Closed lost' && !deal.competitors) throw new ValidationError('Add the competitor involved (or “None”).');
   } else if (!deal.nextStep || !deal.nextStepDate) {
     throw new ValidationError('Every open deal needs a next step and a date.');
   }
+}
+
+/**
+ * Close years offered in year filters (A-04, L-02): 2025 onward, up to the latest year any deal or today
+ * falls in, so future years appear as deals are created for them.
+ */
+export function dealYears(deals, now = new Date()) {
+  const latest = Math.max(now.getFullYear(), ...deals.map((d) => Number(String(d.expectedClose || '').slice(0, 4)) || 0));
+  const years = [];
+  for (let y = FIRST_DEAL_YEAR; y <= latest; y++) years.push(String(y));
+  return years;
 }
 
 /**
@@ -64,13 +76,7 @@ export function filterDeals(state, deals, f, pipeline = 'All', now = new Date())
     if (f.mine && d.ownerId !== f.mine && !(d.collaborators || []).includes(f.mine)) return false; // "My open deals": owner or collaborator
     if (f.closeYear && String(d.expectedClose || '').slice(0, 4) !== String(f.closeYear)) return false; // A-04 / L-02 close year
     if (f.createdFrom && (d.createdAt || '').slice(0, 10) < f.createdFrom) return false;
-    if (
-      f.serviceLine &&
-      !String(d.serviceLine || '')
-        .toLowerCase()
-        .includes(String(f.serviceLine).toLowerCase())
-    )
-      return false; // free text (Nov 13)
+    if (f.serviceLine && !(d.serviceLines || []).some((v) => v === f.serviceLine || serviceCategory(v) === f.serviceLine)) return false; // a category or one service
     const c = companies.get(d.companyId) || {};
     if (f.industry && c.industry !== f.industry) return false;
     if (f.icpTier && c.icpTier !== f.icpTier) return false;
@@ -106,7 +112,7 @@ export function dealExportRows(state, deals, now = new Date()) {
       'Expected start': d.expectedStart || '',
       'Duration (months)': d.durationMonths || '',
       Owner: userName(state, d.ownerId),
-      'Service line': d.serviceLine || '',
+      'Service lines': (d.serviceLines || []).join('; '),
       Industry: c.industry || '',
       Source: d.source || '',
       'Referring partner': companyName(state, d.referringPartnerId),
