@@ -5,6 +5,8 @@
 import {
   DEAL_TYPES,
   IK_DOMAIN,
+  INDUSTRIES,
+  SERVICE_OPTIONS,
   PIPELINES,
   PRIORITIES,
   PROGRESS_STAGES,
@@ -19,21 +21,7 @@ import { uid } from '../utils/object.js';
 
 /** Picklists IK will replace with its own lists (§10). */
 export const DEFAULT_SETTINGS = Object.freeze({
-  serviceLines: ['Optimization', 'AI roadmap', 'Automation', 'Analytics', 'Data engineering', 'Data science as a service'],
   lossReasons: ['Price', 'Timing', 'Chose competitor', 'No budget', 'Went in-house', 'No decision', 'Existing relationship', 'Scope fit'],
-  industries: [
-    'Financial services',
-    'Food and beverage',
-    'Retail',
-    'Healthcare',
-    'Transportation',
-    'Insurance',
-    'Professional services',
-    'Manufacturing',
-    'Life sciences',
-    'Technology',
-    'Energy',
-  ],
 });
 
 /**
@@ -93,49 +81,52 @@ export function createSeed(now = new Date()) {
     createdBy: 'u_russell',
   });
   const companies = [
-    co(
-      'c_harbor',
-      'Harbor Ridge Capital',
-      'harborridgecap.com',
-      'Partner',
-      'Financial services',
-      'Private equity',
-      'Boston, MA',
-      120,
-      '$50M–$100M',
-      'Private',
-      { icp: 'Tier 1' },
-    ),
-    co('c_northwind', 'Northwind Foods', 'northwindfoods.com', 'Client', 'Food and beverage', 'Packaged foods', 'Chicago, IL', 2400, '$500M–$1B', 'PE-backed', {
+    co('c_harbor', 'Harbor Ridge Capital', 'harborridgecap.com', 'Partner', 'Private Equity', 'Private equity', 'Boston, MA', 120, '$50M–$100M', 'Private', {
+      icp: 'Tier 1',
+    }),
+    co('c_northwind', 'Northwind Foods', 'northwindfoods.com', 'Client', 'CPG', 'Packaged foods', 'Chicago, IL', 2400, '$500M–$1B', 'PE-backed', {
       pe: 'c_harbor',
       icp: 'Tier 1',
     }),
-    co('c_cascade', 'Cascade Retail Group', 'cascaderetail.com', 'Prospect', 'Retail', 'Specialty retail', 'Seattle, WA', 5200, '$1B+', 'Public', {
+    co('c_cascade', 'Cascade Retail Group', 'cascaderetail.com', 'Prospect', 'Retail & e-Commerce', 'Specialty retail', 'Seattle, WA', 5200, '$1B+', 'Public', {
       icp: 'Tier 2',
     }),
-    co('c_meridian', 'Meridian Health Systems', 'meridianhealth.org', 'Client', 'Healthcare', 'Provider networks', 'Nashville, TN', 8800, '$1B+', 'Private', {
-      ownerId: 'u_russell',
-      icp: 'Tier 1',
-    }),
-    co('c_atlas', 'Atlas Logistics', 'atlaslogistics.com', 'Prospect', 'Transportation', '3PL', 'Dallas, TX', 1500, '$250M–$500M', 'PE-backed', {
+    co(
+      'c_meridian',
+      'Meridian Health Systems',
+      'meridianhealth.org',
+      'Client',
+      'Life Sciences & Healthcare',
+      'Provider networks',
+      'Nashville, TN',
+      8800,
+      '$1B+',
+      'Private',
+      {
+        ownerId: 'u_russell',
+        icp: 'Tier 1',
+      },
+    ),
+    co('c_atlas', 'Atlas Logistics', 'atlaslogistics.com', 'Prospect', 'Logistics & Transportation', '3PL', 'Dallas, TX', 1500, '$250M–$500M', 'PE-backed', {
       pe: 'c_harbor',
       icp: 'Tier 2',
     }),
-    co('c_brightline', 'Brightline Insurance', 'brightlineins.com', 'Client', 'Insurance', 'Specialty P&C', 'Hartford, CT', 950, '$250M–$500M', 'Private', {
-      ownerId: 'u_russell',
-    }),
     co(
-      'c_summit',
-      'Summit Analytics Partners',
-      'summitanalytics.io',
-      'Partner',
-      'Professional services',
-      'Data consulting',
-      'Denver, CO',
-      60,
-      '$10M–$50M',
+      'c_brightline',
+      'Brightline Energy',
+      'brightlineenergy.com',
+      'Client',
+      'Energy & Utilities',
+      'Grid and power analytics',
+      'Hartford, CT',
+      950,
+      '$250M–$500M',
       'Private',
+      {
+        ownerId: 'u_russell',
+      },
     ),
+    co('c_summit', 'Summit Analytics Partners', 'summitanalytics.io', 'Partner', 'Private Equity', 'Data consulting', 'Denver, CO', 60, '$10M–$50M', 'Private'),
     co(
       'c_pioneer',
       'Pioneer Manufacturing',
@@ -149,10 +140,10 @@ export function createSeed(now = new Date()) {
       'PE-backed',
       { pe: 'c_harbor' },
     ),
-    co('c_vela', 'Vela Pharma', 'velapharma.com', 'Prospect', 'Life sciences', 'Specialty pharma', 'Princeton, NJ', 700, '$100M–$250M', 'Public', {
+    co('c_vela', 'Vela Pharma', 'velapharma.com', 'Prospect', 'Life Sciences & Healthcare', 'Specialty pharma', 'Princeton, NJ', 700, '$100M–$250M', 'Public', {
       icp: 'Tier 3',
     }),
-    co('c_mgi', 'Mega Impacts', 'megaimpacts.com', 'Vendor', 'Professional services', 'Outbound prospecting', 'Remote', 40, '$10M–$50M', 'Private', {
+    co('c_mgi', 'Mega Impacts', 'megaimpacts.com', 'Vendor', 'SaaS', 'Outbound prospecting', 'Remote', 40, '$10M–$50M', 'Private', {
       ownerId: 'u_russell',
     }),
   ];
@@ -231,12 +222,21 @@ export function createSeed(now = new Date()) {
       'US Eastern',
     ),
     ct('p_ava', 'Ava Lindqvist', 'COO', 'C-level', 'Operations', 'c_atlas', 'ava.l@atlaslogistics.com'),
-    ct('p_raj', 'Raj Patel', 'VP Analytics', 'VP', 'Data', 'c_brightline', 'rpatel@brightlineins.com', 'u_russell'),
+    ct('p_raj', 'Raj Patel', 'VP Analytics', 'VP', 'Data', 'c_brightline', 'rpatel@brightlineenergy.com', 'u_russell'),
     ct('p_nina', 'Nina Cole', 'Managing Director', 'Partner', 'Leadership', 'c_summit', 'nina@summitanalytics.io', 'u_russell'),
+    ct('p_ruth', 'Ruth Alvarez', 'VP Operations', 'VP', 'Operations', 'c_pioneer', 'ralvarez@pioneermfg.com'),
     ct('p_omar', 'Omar Haddad', 'Head of Commercial Analytics', 'Director', 'Commercial', 'c_vela', 'ohaddad@velapharma.com'),
   ];
 
   /** Deal factory that also fabricates a believable stage history along the selling path. */
+  /** Short labels used in the deal list below, mapped onto catalog services (category › service). */
+  const SVC = {
+    Optimization: ['Business Consulting › Data Strategy & Architecture', 'Business Consulting › AI Roadmap & Portfolio Prioritization'],
+    Analytics: ['AI Realization › Performance Monitoring & Dashboards'],
+    Automation: ['Operational AI › Workflow Integration & Deployment', 'Operational AI › Tailored Data Science & GenAI Models'],
+    'Data engineering': ['Operational AI › Data Engineering & Pipeline Design'],
+    'Data science as a service': ['Operational AI › DSaaS'],
+  };
   const dl = (id, name, companyId, ownerId, pipeline, stage, amount, close, serviceLine, source, x = {}) => {
     const start = x.age || 60;
     const reached = stage === 'Closed won' ? PROGRESS_STAGES.length - 1 : PROGRESS_STAGES.indexOf(stage); // last path stage passed through
@@ -263,7 +263,7 @@ export function createSeed(now = new Date()) {
       expectedClose: close,
       expectedStart: x.start || addDays(close, 21),
       durationMonths: x.dur || 6,
-      serviceLine,
+      serviceLines: SVC[serviceLine] || [],
       source,
       referringPartnerId: x.partner || '',
       primaryContactId: x.pc || '',
@@ -354,6 +354,7 @@ export function createSeed(now = new Date()) {
       priority: 'High',
     }),
     dl('d_summit_sub', 'Summit subcontract: retail forecasting', 'c_cascade', 'u_russell', CP, 'Partners', 90000, D(85), 'Automation', 'Partner', {
+      pc: 'p_james',
       partner: 'c_summit',
       ns: 'Scope call with Nina',
       nsd: D(9),
@@ -368,6 +369,7 @@ export function createSeed(now = new Date()) {
       age: 10,
     }),
     dl('d_pioneer', 'Pioneer plant analytics phase 2', 'c_pioneer', 'u_cristina', CP, 'Closed lost', 220000, D(-35), 'Data engineering', 'Inbound', {
+      pc: 'p_ruth',
       wl: 'No budget',
       comp: 'In-house team',
       inStage: 30,
@@ -375,7 +377,7 @@ export function createSeed(now = new Date()) {
       type: 'Existing business',
       priority: 'Low',
     }),
-    dl('d_bright_aug', 'Brightline BI developer', 'c_brightline', 'u_russell', SA, 'Prospect', 95000, D(30), 'Data science as a service', 'Referral', {
+    dl('d_bright_aug', 'Brightline BI developer', 'c_brightline', 'u_russell', SA, 'Prospect', 95000, D(30), 'Data science as a service', 'Internal', {
       pc: 'p_raj',
       ns: 'Share two candidate profiles',
       nsd: D(0),
@@ -383,6 +385,7 @@ export function createSeed(now = new Date()) {
       type: 'Existing business',
     }),
     dl('d_atlas_ops', 'Atlas ops dashboard sprint', 'c_atlas', 'u_cristina', CP, 'On Hold', 75000, D(110), 'Analytics', 'Partner', {
+      pc: 'p_ava',
       partner: 'c_harbor',
       ns: 'Check back after budget cycle',
       nsd: D(45),
@@ -591,7 +594,7 @@ export function createSeed(now = new Date()) {
       'Brightline: staffing and start date',
       3,
       30,
-      [`russell@${IK_DOMAIN}`, 'rpatel@brightlineins.com'],
+      [`russell@${IK_DOMAIN}`, 'rpatel@brightlineenergy.com'],
       'd_bright',
       'c_brightline',
       ['p_raj'],
@@ -624,9 +627,10 @@ export function createSeed(now = new Date()) {
     note('n_6', 'contact', 'p_dana', '<p>Prefers a one-page summary before any call.</p>', 'u_cristina', 6),
   ];
 
-  const task = (id, title, due, assigneeId, refType, refId) => ({
+  const task = (id, title, due, assigneeId, refType, refId, type = 'To-do') => ({
     id,
     title,
+    type, // call, email, to-do (E-02)
     dueDate: due,
     assigneeId,
     reminderDate: due,
@@ -638,13 +642,13 @@ export function createSeed(now = new Date()) {
     createdBy: assigneeId,
   });
   const tasks = [
-    task('t_1', 'Send two-option pricing to Dana', D(0), 'u_cristina', 'deal', 'd_nw_fpa'),
-    task('t_2', 'Book procurement session with Lena', D(-1), 'u_cristina', 'deal', 'd_nw_fpa'),
+    task('t_1', 'Send two-option pricing to Dana', D(0), 'u_cristina', 'deal', 'd_nw_fpa', 'Email'),
+    task('t_2', 'Book procurement session with Lena', D(-1), 'u_cristina', 'deal', 'd_nw_fpa', 'Call'),
     task('t_3', 'Draft PHI reference architecture', D(2), 'u_russell', 'deal', 'd_meridian_ai'),
-    task('t_4', 'Confirm named engineers for Brightline', D(0), 'u_rod', 'deal', 'd_bright'),
+    task('t_4', 'Confirm named engineers for Brightline', D(0), 'u_rod', 'deal', 'd_bright', 'Email'),
     task('t_5', 'Renewal plan for Brightline reporting SOW', D(-3), 'u_russell', 'contract', 'k_bri_sow'),
     task('t_6', 'Build sell-through prototype for Cascade', D(5), 'u_cristina', 'deal', 'd_cascade'),
-    task('t_7', 'Follow up with Ava on intro call', D(-2), 'u_cristina', 'deal', 'd_atlas'),
+    task('t_7', 'Follow up with Ava on intro call', D(-2), 'u_cristina', 'deal', 'd_atlas', 'Call'),
   ];
 
   // Activities derived from the records above so the dashboard feed is populated.
@@ -678,62 +682,7 @@ export function createSeed(now = new Date()) {
       at: n.createdAt,
     });
 
-  const savedViews = [
-    {
-      id: 'sv_6',
-      objectType: 'deal',
-      name: `${T.slice(0, 4)} Pipeline`,
-      filters: { closeYear: T.slice(0, 4) },
-      mode: 'board',
-      pipeline: 'Consulting projects',
-      ownerId: 'u_cristina',
-      shared: true,
-    },
-    {
-      id: 'sv_3',
-      objectType: 'deal',
-      name: 'My open deals',
-      filters: { openOnly: true, mine: true },
-      mode: 'board',
-      pipeline: 'All',
-      ownerId: 'u_cristina',
-      shared: true,
-    },
-    {
-      id: 'sv_4',
-      objectType: 'company',
-      name: 'Clients',
-      query: { filters: [{ field: 'relationship', op: 'is', value: 'Client' }] },
-      ownerId: 'u_cristina',
-      shared: true,
-    },
-    {
-      id: 'sv_5',
-      objectType: 'company',
-      name: 'Partners',
-      query: { filters: [{ field: 'relationship', op: 'is', value: 'Partner' }] },
-      ownerId: 'u_cristina',
-      shared: true,
-    },
-    {
-      id: 'sv_1',
-      objectType: 'deal',
-      name: 'Closing in 30 days',
-      filters: { closeTo: D(30), openOnly: true },
-      mode: 'table',
-      pipeline: 'All',
-      ownerId: 'u_russell',
-      shared: true,
-    },
-    {
-      id: 'sv_2',
-      objectType: 'contact',
-      name: 'Data leaders',
-      query: { filters: [{ field: 'function', op: 'is', value: 'Data' }] },
-      ownerId: 'u_russell',
-      shared: true,
-    },
-  ];
+  const savedViews = []; // lists open on All and My; people save their own views (L-03)
 
   return {
     version: SCHEMA_VERSION,
@@ -750,6 +699,9 @@ export function createSeed(now = new Date()) {
     activities,
     aiOutputs: [],
     savedViews,
+    dashboards: [],
+    reports: [],
+    prefs: {},
     audit: [],
     imports: [],
     settings: { ...structuredClone(DEFAULT_SETTINGS), firefliesCursor: 0, lastBackup: null },
@@ -774,7 +726,7 @@ export function createLargeSeed({ companies = 1000, contacts = 10000, deals = 50
       domain: `load${i}.example.com`,
       ownerId: pick(base.users).id,
       relationship: 'Prospect',
-      industry: pick(base.settings.industries),
+      industry: pick(INDUSTRIES),
       subIndustry: '',
       hq: '',
       employees: Math.floor(rand() * 10000),
@@ -824,10 +776,10 @@ export function createLargeSeed({ companies = 1000, contacts = 10000, deals = 50
       expectedClose: addDays(T, Math.floor(rand() * 360) - 60),
       expectedStart: '',
       durationMonths: 6,
-      serviceLine: pick(base.settings.serviceLines),
+      serviceLines: [pick(SERVICE_OPTIONS)],
       source: pick(SOURCES),
       referringPartnerId: '',
-      primaryContactId: '',
+      primaryContactId: i % companies < contacts ? `p_l${i % companies}` : '', // contact p_lN belongs to company c_lN
       decisionMakerId: '',
       championId: '',
       nextStep: 'Follow up',

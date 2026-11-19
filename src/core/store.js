@@ -2,7 +2,19 @@
  * @file Persistence layer. The store owns the dataset and knows nothing about roles.
  * Storage is injected so tests use memory and the browser uses localStorage.
  */
-import { LEGACY_PIPELINE_MAP, LEGACY_STAGE_MAP, PIPELINES, SCHEMA_VERSION, STAGE_PROBABILITY, USER_STATUS } from '../config/constants.js';
+import {
+  INDUSTRIES,
+  RETIRED_PRESET_VIEWS,
+  SERVICE_OPTIONS,
+  SERVICE_SEP,
+  LEGACY_PIPELINE_MAP,
+  LEGACY_STAGE_MAP,
+  PIPELINES,
+  SCHEMA_VERSION,
+  STAGE_PROBABILITY,
+  USER_STATUS,
+} from '../config/constants.js';
+import { mapIndustry } from './industries.js';
 
 /** Default probabilities of the pre-Central-Kitchen stages, used to spot untouched probabilities. */
 const LEGACY_PROBABILITY = { Lead: 10, Qualified: 20, Discovery: 30, 'Solution design': 40, 'Proposal sent': 60, 'Negotiation and contracting': 80 };
@@ -38,11 +50,14 @@ export function migrate(state) {
     'activities',
     'aiOutputs',
     'savedViews',
+    'dashboards',
+    'reports',
     'audit',
     'imports',
   ];
   for (const key of arrays) if (!Array.isArray(state[key])) state[key] = []; // missing collections become empty
   state.settings = state.settings || {};
+  state.prefs = state.prefs || {}; // per-user preferences, e.g. default dashboard (L-14)
   for (const u of state.users) {
     if (!u.status) u.status = u.active === false ? USER_STATUS.DEACTIVATED : USER_STATUS.ACTIVE; // v1 used a boolean
     delete u.active;
@@ -63,6 +78,29 @@ export function migrate(state) {
     if (v.filters?.stage && LEGACY_STAGE_MAP[v.filters.stage]) v.filters.stage = LEGACY_STAGE_MAP[v.filters.stage];
     if (LEGACY_PIPELINE_MAP[v.pipeline]) v.pipeline = LEGACY_PIPELINE_MAP[v.pipeline];
     if (v.pipeline && v.pipeline !== 'All' && !PIPELINES.includes(v.pipeline)) v.pipeline = 'All';
+  }
+  // v4 (Nov 18 brief): service lines by category, the 11 IK industries, task types, no preset views.
+  for (const d of state.deals) {
+    if (!Array.isArray(d.serviceLines)) {
+      const old = String(d.serviceLine || '').toLowerCase();
+      const match = SERVICE_OPTIONS.find((v) => old && v.split(SERVICE_SEP)[1].toLowerCase() === old); // exact service names carry over
+      d.serviceLines = match ? [match] : old.includes('science as a service') || old === 'dsaas' ? ['Operational AI › DSaaS'] : [];
+      if (!match && d.serviceLine && !d.serviceLines.length) d.serviceLineLegacy = d.serviceLine; // kept, never lost
+      delete d.serviceLine;
+    }
+  }
+  for (const c of state.companies) {
+    if (c.industry && !INDUSTRIES.includes(c.industry)) {
+      const mapped = mapIndustry(c.industry);
+      if (!mapped && !c.subIndustry) c.subIndustry = c.industry; // unmapped value moves to sub-industry
+      c.industry = mapped;
+    }
+  }
+  for (const t of state.tasks) if (!t.type) t.type = 'To-do';
+  state.savedViews = state.savedViews.filter((v) => !RETIRED_PRESET_VIEWS.includes(v.id)); // L-03: All and My, plus custom
+  if (state.settings) {
+    delete state.settings.industries;
+    delete state.settings.serviceLines;
   }
   state.version = SCHEMA_VERSION;
   return state;

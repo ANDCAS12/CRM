@@ -13,8 +13,8 @@ export const isAdmin = (user) => user?.role === 'admin';
 
 /** Record types each role may create or edit (besides per-record checks below). */
 const EDITABLE_TYPES = Object.freeze({
-  gtm: ['deal', 'company', 'contact', 'task', 'note', 'call', 'dealContact', 'savedView', 'aiOutput'],
-  delivery: ['contract', 'placement', 'note', 'task', 'savedView', 'aiOutput'],
+  gtm: ['deal', 'company', 'contact', 'task', 'note', 'call', 'dealContact', 'savedView', 'aiOutput', 'dashboard', 'report'],
+  delivery: ['contract', 'placement', 'note', 'task', 'savedView', 'aiOutput', 'dashboard', 'report'],
   finance: [], // Finance is read-only
 });
 
@@ -48,6 +48,7 @@ export function canEdit(user, type, record) {
     return record.ownerId === user.id || (record.collaborators || []).includes(user.id); // own and shared deals only
   }
   if (user.role === 'delivery' && type === 'contract') return Boolean(record); // edit existing contracts, never create
+  if ((type === 'dashboard' || type === 'report') && record && record.ownerId !== user.id) return false; // others' dashboards are view-only (L-14)
   return (EDITABLE_TYPES[user.role] || []).includes(type);
 }
 

@@ -3,9 +3,19 @@
  * search, filters, sort and pipeline (L-01, L-02, B-04), the summary bar (B-14), deal cards with
  * quick actions, column totals and weighted amounts (L-05, L-06), bulk edit and export (B-03, L-04).
  */
-import { CLOSED_STAGES, PIPELINES, SOURCES, STAGE_DESCRIPTIONS, STAGES } from '../../config/constants.js';
+import {
+  CLOSED_STAGES,
+  INDUSTRIES,
+  PIPELINES,
+  SERVICE_CATALOG,
+  SERVICE_CATEGORIES,
+  SERVICE_SEP,
+  SOURCES,
+  STAGE_DESCRIPTIONS,
+  STAGES,
+} from '../../config/constants.js';
 import { canEdit } from '../../core/permissions.js';
-import { dealExportRows, filterDeals, isOpen, lastActivity, nextStepOverdue, weighted } from '../../core/deals.js';
+import { dealExportRows, dealYears, filterDeals, isOpen, lastActivity, nextStepOverdue, weighted } from '../../core/deals.js';
 import { columnTotals, dealSummaryBar } from '../../core/reports.js';
 import { companyName, userName } from '../../core/lookups.js';
 import { addDays, dayDiff, today } from '../../utils/dates.js';
@@ -23,6 +33,7 @@ const SORTS = [
   ['createdAt', 'Create date'],
   ['activity', 'Last activity'],
   ['name', 'Deal name'],
+  ['owner', 'Deal owner'], // B-03
 ];
 
 /** Active users as [id, name] pairs. */
@@ -78,15 +89,18 @@ function filterPanel() {
     `<div><label class="l" for="flt_${k}">${label}</label><select class="f" id="flt_${k}" data-f="${k}">${[['', 'Any'], ...options].map(([v, l]) => `<option value="${esc(v)}"${String(f[k] || '') === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div>`;
   const inp = (k, type, label) =>
     `<div><label class="l" for="flt_${k}">${label}</label><input class="f" id="flt_${k}" type="${type}" data-f="${k}" value="${esc(f[k] || '')}"></div>`;
-  const s = state().settings;
   return `<div class="filters">
     ${sel(
       'stage',
       STAGES.map((x) => [x, x]),
       'Stage',
-    )}${inp('serviceLine', 'text', 'Service line contains')}${sel(
+    )}${sel(
+      'serviceLine',
+      SERVICE_CATEGORIES.flatMap((c) => [[c, `${c} (all)`], ...SERVICE_CATALOG[c].map((x) => [`${c}${SERVICE_SEP}${x}`, `  ${x}`])]),
+      'Service line',
+    )}${sel(
       'industry',
-      s.industries.map((x) => [x, x]),
+      INDUSTRIES.map((x) => [x, x]),
       'Industry',
     )}
     ${inp('minAmt', 'number', 'Min value')}${inp('maxAmt', 'number', 'Max value')}${inp('closeFrom', 'date', 'Close from')}${inp('closeTo', 'date', 'Close to')}
@@ -116,7 +130,6 @@ function filterPanel() {
 export function renderDeals(root) {
   const ui = ctx.ui;
   const now = ctx.now();
-  const year = today(now).slice(0, 4);
   const deals = currentDeals();
   const views = state().savedViews.filter((v) => v.objectType === 'deal' && (v.shared || v.ownerId === ctx.user.id));
   const f = ui.dealFilters;
@@ -132,6 +145,7 @@ export function renderDeals(root) {
     ${canCreate ? '<button class="btn pri" id="newDeal">+ Create deal</button>' : ''}</div>
   <div class="viewtabs" role="tablist" aria-label="Saved views">
     <button class="v ${!ui.dealView ? 'on' : ''}" data-view="" role="tab">All deals</button>
+    <button class="v ${ui.dealView === 'mine' ? 'on' : ''}" data-view="mine" role="tab">My deals</button>
     ${views.map((v) => `<button class="v ${ui.dealView === v.id ? 'on' : ''}" data-view="${v.id}" role="tab">${esc(v.name)}${v.ownerId === ctx.user.id ? `<span class="x" data-delview="${v.id}" role="button" aria-label="Delete view ${esc(v.name)}">✕</span>` : ''}</button>`).join('')}
     <button class="add" id="svSave" aria-label="Save current filters as a view" title="Save view">+</button>
   </div>
@@ -143,7 +157,12 @@ export function renderDeals(root) {
     <select class="fsel" id="pipeSel" aria-label="Pipeline" style="min-width:200px">${[...PIPELINES, 'All'].map((p) => `<option value="${p}"${ui.pipeline === p ? ' selected' : ''}>${p === 'All' ? 'All pipelines' : p}</option>`).join('')}</select>
   </div>
   <div class="fbar" aria-label="Quick filters">
-    <select class="fsel ${f.closeYear ? 'on' : ''}" data-q="closeYear" aria-label="Close date"><option value="">Close date: any</option><option value="${year}"${f.closeYear === year ? ' selected' : ''}>Close date: this year</option><option value="${+year + 1}"${f.closeYear === String(+year + 1) ? ' selected' : ''}>Close date: ${+year + 1}</option></select>
+    <select class="fsel ${f.closeYear ? 'on' : ''}" data-q="closeYear" aria-label="Close year"><option value="">Close year: All</option>${dealYears(
+      ctx.api.all('deal'),
+      now,
+    )
+      .map((y) => `<option value="${y}"${f.closeYear === y ? ' selected' : ''}>Close year: ${y}</option>`)
+      .join('')}</select>
     <select class="fsel ${f.ownerId ? 'on' : ''}" data-q="ownerId" aria-label="Deal owner"><option value="">Deal owner</option>${userOptions()
       .map(([v, l]) => `<option value="${v}"${f.ownerId === v ? ' selected' : ''}>${esc(l)}</option>`)
       .join('')}</select>
@@ -205,8 +224,8 @@ export function renderDeals(root) {
       (b.onclick = (e) => {
         if (e.target.dataset.delview) return; // the ✕ has its own handler
         const v = views.find((x) => x.id === b.dataset.view);
-        ui.dealView = v ? v.id : '';
-        ui.dealFilters = v ? clone(v.filters || {}) : {}; // L-03 apply a saved view
+        ui.dealView = v ? v.id : b.dataset.view === 'mine' ? 'mine' : '';
+        ui.dealFilters = v ? clone(v.filters || {}) : b.dataset.view === 'mine' ? { mine: true } : {}; // L-03: All and My, plus custom views
         if (v?.mode) ui.dealMode = v.mode;
         if (v) ui.pipeline = v.pipeline || 'All';
         ctx.render();

@@ -10,7 +10,7 @@ const PAGES = [
   'contracts',
   'placements',
   'calls',
-  'reports',
+  'dashboards',
   'admin',
   'deal-d_nw_aug',
   'company-c_northwind',

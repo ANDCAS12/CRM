@@ -85,7 +85,66 @@ export const LEGACY_STAGE_MAP = Object.freeze({
 });
 
 /** Deal and contact sources (B-08). */
-export const SOURCES = Object.freeze(['Inbound', 'MGI outbound', 'Referral', 'Partner', 'Event']);
+export const SOURCES = Object.freeze(['Inbound', 'MGI outbound', 'Referral', 'Partner', 'Event', 'Internal']); // "Internal" added Nov 18 (B-08)
+
+/**
+ * Service lines (Nov 18 picklists slide): two levels, category then service, multi-select on a deal.
+ * DSaaS is both a pipeline and a service under Operational AI. Stored on deals as "Category › Service".
+ */
+export const SERVICE_CATALOG = Object.freeze({
+  'Business Consulting': [
+    'Solution, Model & Data Assessment',
+    'Analytics-First Process Design',
+    'Data Strategy & Architecture',
+    'AI Roadmap & Portfolio Prioritization',
+    'Build-vs-Buy Decision Framework',
+  ],
+  'Operational AI': [
+    'Production-quality AI development',
+    'Tailored Data Science & GenAI Models',
+    'Data Engineering & Pipeline Design',
+    'Workflow Integration & Deployment',
+    'Model Validation & Testing',
+    'DSaaS',
+  ],
+  'AI Realization': [
+    'Analytics Model Business Activation',
+    'Data Science Team Coaching',
+    'Ongoing Model Improvements',
+    'Performance Monitoring & Dashboards',
+    'Capability Transfer & Documentation',
+  ],
+});
+export const SERVICE_SEP = ' › ';
+export const SERVICE_CATEGORIES = Object.freeze(Object.keys(SERVICE_CATALOG));
+/** Every "Category › Service" value, in catalog order. */
+export const SERVICE_OPTIONS = Object.freeze(SERVICE_CATEGORIES.flatMap((c) => SERVICE_CATALOG[c].map((s) => `${c}${SERVICE_SEP}${s}`)));
+/** Category of a stored service value. */
+export const serviceCategory = (v) => String(v || '').split(SERVICE_SEP)[0];
+
+/** The 11 IK industries (Nov 18); HubSpot industries map onto these during migration (M-01). */
+export const INDUSTRIES = Object.freeze([
+  'CPG',
+  'Retail & e-Commerce',
+  'Logistics & Transportation',
+  'Manufacturing',
+  'High Tech & Semiconductor',
+  'Energy & Utilities',
+  'Oil & Gas',
+  'Automotive',
+  'Life Sciences & Healthcare',
+  'SaaS',
+  'Private Equity',
+]);
+
+/** Task types (E-02). */
+export const TASK_TYPES = Object.freeze(['Call', 'Email', 'To-do']);
+
+/** First close year offered in year filters: every deal since 2025 is migrated (A-04, L-02, M-01). */
+export const FIRST_DEAL_YEAR = 2025;
+
+/** Preset saved views shipped before Nov 18; removed because lists open on All and My only (L-03). */
+export const RETIRED_PRESET_VIEWS = Object.freeze(['sv_1', 'sv_2', 'sv_3', 'sv_4', 'sv_5', 'sv_6']);
 
 /** Roles from §3. Keys are stored on users; values are shown in the UI. */
 export const ROLES = Object.freeze({
@@ -122,7 +181,7 @@ export const IK_DOMAIN = 'insightkitchen.com';
 export const STORAGE_KEY = 'ikcrm.v1';
 
 /** Current data schema version, used by store migrations. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** Delivery and talent only see deals in contracting and won (§3 table): Verbal Approval onward. */
 export const DELIVERY_VISIBLE_STAGES = Object.freeze(['Verbal Approval', 'Contract Sent', 'Closed won']);
@@ -149,6 +208,8 @@ export const COLLECTIONS = Object.freeze({
   user: 'users',
   dealContact: 'dealContacts',
   savedView: 'savedViews',
+  dashboard: 'dashboards', // custom dashboards (L-12, L-14)
+  report: 'reports', // saved reports library (L-13)
   aiOutput: 'aiOutputs',
 });
 
@@ -166,6 +227,8 @@ export const LABELS = Object.freeze({
   dealContact: 'Buying role',
   savedView: 'Saved view',
   aiOutput: 'AI output',
+  dashboard: 'Dashboard',
+  report: 'Report',
 });
 
 /** User account statuses (Access: invite, deactivate). */

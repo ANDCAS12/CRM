@@ -120,7 +120,7 @@ export function companyForm(existing = null) {
   let acknowledged = false;
   const m = modal(
     existing ? 'Edit company' : 'New company',
-    `${formHtml('company', existing || { ownerId: ctx.user.id, relationship: 'Prospect' })}<div id="dupWarn" class="small" style="margin-top:10px" aria-live="polite"></div>`,
+    `${existing ? '' : '<div class="claudefill"><button class="btn" type="button" disabled aria-disabled="true">Fill with Claude</button><span class="v2">V2</span><span class="small muted">Enter the domain and/or name; in V2 Claude fills industry, location, size, ownership, description and LinkedIn from public sources for you to review (C-08). Owner, relationship, ICP tier and folder stay manual.</span></div>'}${formHtml('company', existing || { ownerId: ctx.user.id, relationship: 'Prospect' })}<div id="dupWarn" class="small" style="margin-top:10px" aria-live="polite"></div>`,
     {
       saveLabel: existing ? 'Save changes' : 'Create company',
       onSave: (body) => {
@@ -163,19 +163,36 @@ export const initials = (name) =>
     .join('');
 
 /** Create a task from anywhere (E-02), optionally linked to a deal. */
+/** Options for "Linked record": deals, companies, contacts and contracts, grouped (E-02, task field spec). */
+export function linkedRecordSelect(id, value = '') {
+  const groups = [
+    ['deal', 'Deals', ctx.api.all('deal').map((d) => [d.id, d.name])],
+    ['company', 'Companies', state().companies.map((c) => [c.id, c.name])],
+    ['contact', 'Contacts', state().contacts.map((p) => [p.id, p.name])],
+    ['contract', 'Contracts', ctx.api.all('contract').map((k) => [k.id, k.name])],
+  ];
+  return `<select class="f" id="${id}"><option value="">None</option>${groups
+    .map(
+      ([t, label, rows]) =>
+        `<optgroup label="${label}">${rows.map(([rid, n]) => `<option value="${t}:${rid}"${value === `${t}:${rid}` ? ' selected' : ''}>${esc(n)}</option>`).join('')}</optgroup>`,
+    )
+    .join('')}</select>`;
+}
+
+/** Create a task from anywhere (E-02): type, due date, assignee, reminder and a linked record. */
 export function taskForm(preset = {}) {
   const due = addDays(today(ctx.now()), 1);
-  const deals = [['', ''], ...ctx.api.all('deal').map((d) => [d.id, d.name])];
+  const linked = preset.ref || (preset.dealId ? `deal:${preset.dealId}` : '');
   modal(
     'Create task',
-    `${formHtml('task', { assigneeId: ctx.user.id, dueDate: due, reminderDate: due, emailReminder: true })}<div style="margin-top:12px"><label class="l" for="f_tdeal">Linked deal</label>${inputHtml({ k: 'tdeal', t: 'select', o: deals }, preset.dealId || '')}</div>`,
+    `${formHtml('task', { type: 'To-do', assigneeId: ctx.user.id, dueDate: due, reminderDate: due, emailReminder: true, ...preset.values })}<div style="margin-top:12px"><label class="l" for="f_tlink">Linked record</label>${linkedRecordSelect('f_tlink', linked)}</div>`,
     {
       saveLabel: 'Create task',
       onSave: (body) => {
         const task = readForm('task', body);
         if (!task.title) throw new ValidationError('Name the task.');
-        const dealId = $('#f_tdeal', body).value;
-        ctx.api.create('task', { ...task, done: false, refType: dealId ? 'deal' : '', refId: dealId });
+        const [refType = '', refId = ''] = ($('#f_tlink', body).value || '').split(':');
+        ctx.api.create('task', { ...task, done: false, refType, refId });
         toast('Task created');
         rerender();
       },

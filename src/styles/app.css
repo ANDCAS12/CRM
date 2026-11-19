@@ -2152,3 +2152,118 @@ table.t.frozen td.cb + td {
 .lp .row2:has(#aBtn) {
   grid-template-columns: 1fr 1fr 1fr;
 }
+
+/* New company: Claude auto-fill step, shown as V2 (C-08). */
+.claudefill {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: var(--soft);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.claudefill .small {
+  flex: 1 1 260px;
+}
+
+/* ---------- dashboards (L-12 to L-14) ---------- */
+:root {
+  --c1: var(--charcoal);
+}
+:root[data-theme='dark'] {
+  --c1: var(--fog);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --c1: var(--fog);
+  }
+}
+.dgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.dgrid .card + .card {
+  margin-top: 0;
+}
+.dgrid .card.kpic {
+  min-height: 0;
+}
+.kpi .v {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.funnel .fr {
+  display: grid;
+  grid-template-columns: 120px 1fr 48px;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 0;
+  font-size: 13px;
+}
+.funnel .fb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.funnel .fb i {
+  display: block;
+  height: 22px;
+  border-radius: 3px;
+}
+.funnel .fp {
+  text-align: right;
+  color: var(--text2);
+  font-size: 12px;
+}
+.builder {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.builder .card + .card {
+  margin-top: 0;
+}
+.builder label.l {
+  margin-top: 10px;
+}
+.tpls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tpls button {
+  border: 1px solid var(--line);
+  background: var(--soft);
+  border-radius: 7px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.tpls button.on {
+  background: var(--charcoal);
+  color: var(--off);
+  border-color: var(--charcoal);
+}
+.tpls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.cardh .menu {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+@media (max-width: 860px) {
+  .dgrid,
+  .builder {
+    grid-template-columns: 1fr;
+  }
+}

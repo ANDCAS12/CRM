@@ -25,15 +25,18 @@ function importCsv(t, presetKey, csv, options = {}) {
 
 describe('HubSpot deals (slides 20 and 21)', () => {
   const HEAD =
-    'dealname,dealstage,amount,closedate,pipeline,hubspot_owner_id,createdate,hs_next_step,closed_lost_reason,description,dealtype,hs_priority,hs_deal_stage_probability,Lifecycle';
+    'dealname,dealstage,amount,closedate,pipeline,hubspot_owner_id,createdate,hs_next_step,closed_lost_reason,description,dealtype,hs_priority,hs_deal_stage_probability,Lifecycle,Associated contact';
   it('maps stages one to one, parses Company_Opp NNN_Description, keeps created dates and reports gaps', () => {
     const t = setup();
     const r = importCsv(
       t,
       'hsDeals',
-      `${HEAD}\nAcme Corp_Opp 003_BI rollout,Proposal sent (40%),"150,000",12/15/2026,Deals pipeline,Cristina Frieri,03/02/2026,Send pricing,,Wants a phased plan,newbusiness,HIGH,0.4,x\nNorthwind Foods_Opp 011_Old work,Closed lost,5,2026-01-10,Deals pipeline,Nobody,2025-11-01,,No budget,,existingbusiness,LOW,0,y\n,Prospect,1,,,,,,,,,,,`,
+      `${HEAD}\nAcme Corp_Opp 003_BI rollout,Proposal sent (40%),"150,000",12/15/2026,Deals pipeline,Cristina Frieri,03/02/2026,Send pricing,,Wants a phased plan,newbusiness,HIGH,0.4,x,mia.lopez@acme.com\nNorthwind Foods_Opp 011_Old work,Closed lost,5,2026-01-10,Deals pipeline,Nobody,2025-11-01,,No budget,,existingbusiness,LOW,0,y,dana.whitfield@northwindfoods.com\n,Prospect,1,,,,,,,,,,,,\nNorthwind Foods_Opp 012_No contact,Prospect,1,,,,,,,,,,,,`,
     );
-    expect(r).toMatchObject({ skipped: ['Row 4: no deal name'], unmappedColumns: ['Lifecycle'] });
+    expect(r).toMatchObject({
+      skipped: ['Row 4: no deal name', 'Row 5: no associated contact: link one in HubSpot, then export again'],
+      unmappedColumns: ['Lifecycle'],
+    });
     const acme = t.state.deals.find((d) => d.name === 'BI rollout');
     expect(acme).toMatchObject({
       stage: 'Proposal sent',
@@ -51,7 +54,19 @@ describe('HubSpot deals (slides 20 and 21)', () => {
     expect(acme.createdAt.startsWith('2026-03-02')).toBe(true);
     expect(t.state.notes.find((n) => n.refId === acme.id).body).toContain('Wants a phased plan'); // description is the first note
     const old = t.state.deals.find((d) => d.name === 'Old work');
-    expect(old).toMatchObject({ stage: 'Closed lost', companyId: 'c_northwind', winLossReason: 'No budget', dealType: 'Existing business', priority: 'Low' });
+    expect(old).toMatchObject({
+      stage: 'Closed lost',
+      companyId: 'c_northwind',
+      primaryContactId: 'p_dana',
+      winLossReason: 'No budget',
+      dealType: 'Existing business',
+      priority: 'Low',
+    });
+    expect(t.state.contacts.find((p) => p.id === acme.primaryContactId)).toMatchObject({
+      name: 'Mia Lopez',
+      email: 'mia.lopez@acme.com',
+      companyId: acme.companyId,
+    }); // unknown email creates the contact
     expect(r.notes).toEqual(expect.arrayContaining(['Owner “Nobody” not found; assigned to you']));
     expect(t.state.imports[0].name).toBe('HubSpot deals 2026-11-11');
   });
@@ -60,14 +75,14 @@ describe('HubSpot deals (slides 20 and 21)', () => {
     const r = importCsv(
       t,
       'hsDeals',
-      'Deal Name,Deal Stage,Pipeline\nX_Opp 1_Thing,Suspect,Test Pipeline\nY Co_Opp 2_Two data engineers,Prospect,Deals pipeline',
+      'Deal Name,Deal Stage,Pipeline,Associated contact\nX_Opp 1_Thing,Suspect,Test Pipeline,a@x.com\nY Co_Opp 2_Two data engineers,Prospect,Deals pipeline,b@y.com',
     );
     expect(r.skipped).toEqual(['Row 2: Test Pipeline, not migrated']);
     expect(t.state.deals.at(-1)).toMatchObject({ name: 'Two data engineers', pipeline: 'Data Science as a Service' });
   });
   it('maps unknown stages to Suspect with a note', () => {
     const t = setup();
-    const r = importCsv(t, 'hsDeals', 'Deal Name,Deal Stage\nX,weird');
+    const r = importCsv(t, 'hsDeals', 'Deal Name,Deal Stage,Associated company,Associated contact\nX,weird,Acme,a@acme.com');
     expect(t.state.deals.at(-1).stage).toBe('Suspect');
     expect(r.notes).toContain('Stage “weird” mapped to Suspect');
   });
@@ -247,5 +262,31 @@ describe('contract matrix billing schedule (slide 19)', () => {
     const t = setup();
     importCsv(t, 'contracts', 'Contract,Client,Billing schedule\nNew SOW,Northwind Foods,"Monthly, first business day"');
     expect(t.state.contracts.at(-1)).toMatchObject({ name: 'New SOW', billingSchedule: 'Monthly, first business day' });
+  });
+});
+
+describe('Nov 18: 11 industries and new company fields', () => {
+  it('maps HubSpot industry values and keeps unmatched ones as sub-industry', () => {
+    const t = setup();
+    const r = importCsv(
+      t,
+      'hsCompanies',
+      'Company name,Company Domain Name,Industry,City,State/Region,Postal code,Description,LinkedIn company page\nOrion,orion.com,COMPUTER_SOFTWARE,Columbus,OH,43215,Regional distributor,https://linkedin.com/company/orion\nZeta,zeta.com,Insurance,,,,,',
+    );
+    expect(t.state.companies.find((c) => c.name === 'Orion')).toMatchObject({
+      industry: 'SaaS',
+      city: 'Columbus',
+      state: 'OH',
+      postalCode: '43215',
+      description: 'Regional distributor',
+      linkedinUrl: 'https://linkedin.com/company/orion',
+    });
+    expect(t.state.companies.find((c) => c.name === 'Zeta')).toMatchObject({ industry: '', subIndustry: 'Insurance' });
+    expect(r.notes.join(' ')).toContain('matches none of the 11 IK industries');
+  });
+  it('maps HubSpot task types', () => {
+    const t = setup();
+    importCsv(t, 'hsTasks', 'Task title,Due date,Task type\nCall Dana,2026-12-01,CALL\nSend deck,2026-12-02,EMAIL\nPrep,2026-12-03,TODO');
+    expect(t.state.tasks.slice(-3).map((x) => x.type)).toEqual(['Call', 'Email', 'To-do']);
   });
 });

@@ -1,5 +1,7 @@
 # Feature map
 
+> Since 3.2.0 the scope follows the Nov 18 Feature List and Build Brief (106 stories: 48 MVP, 48 V2, 10 V3). New MVP stories: E-08 (Tasks page, `src/ui/views/tasks.js`), L-12 to L-14 (Dashboards and report builder, `src/ui/views/dashboards.js`, `src/core/reportEngine.js`). C-08 (Claude fills new companies) is V2; its five company fields are in the MVP.
+>
 > Since 3.0.0 the design follows Cristina Frieri's Central Kitchen Build Brief (Nov 13, 2026). Items it marks V2 or V3 appear in the app with a V2/V3 tag and are not built.
 
 Each feature, the build prompt story it implements, and where it lives. "Tutorial" marks features whose design follows the two HubSpot setup tutorials supplied in v2. A tutorial feature was added **only** when the build prompt already includes it.
@@ -35,7 +37,7 @@ Each feature, the build prompt story it implements, and where it lives. "Tutoria
 | --- | --- | --- |
 | List views as tabs, filters, sort, search, frozen first column | D, C, L-01..L-03 | `ui/components/listView.js`, `core/query.js` |
 | Filter builder with conditions (is, contains, is known, in the last N days…) | L-02 | `core/query.js#OPERATORS` |
-| Record layout: key properties, quick actions (note, task, log call), About and Activities tabs, associations on the right | B-05, C-02, D-01 | `ui/components/recordLayout.js` |
+| Record layout: key properties, quick actions (note, task, log call), About and Activities tabs, associations on the right | B-05, C-02, D-01 | `ui/components/recordPage.js` |
 | Activity type filters on the timeline, including property changes | B-05, E | `ui/components/timeline.js` |
 | “View all properties” panel with search, groups, inline edit; read-only auto fields | B-02, D-01 | `ui/components/propertiesPanel.js` |
 | Contact owner can be left empty (“No owner”) | D-01 | `config/fields.js` |

@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { dealExportRows, filterDeals, isOpen, lastActivity, nextStepOverdue, timeInStage, validateDeal, weighted } from '../../src/core/deals.js';
+import { dealExportRows, dealYears, filterDeals, isOpen, lastActivity, nextStepOverdue, timeInStage, validateDeal, weighted } from '../../src/core/deals.js';
 import { NOW, setup } from './helpers.js';
 
-const base = { name: 'X', companyId: 'c', stage: 'Suspect', nextStep: 'Call', nextStepDate: '2026-12-01' };
+const base = { name: 'X', companyId: 'c', primaryContactId: 'p', stage: 'Suspect', nextStep: 'Call', nextStepDate: '2026-12-01' };
+
+describe('required associations (B-02)', () => {
+  it('needs a primary contact on every deal', () => expect(() => validateDeal({ ...base, primaryContactId: '' })).toThrow('primary contact'));
+  it('needs a company', () => expect(() => validateDeal({ ...base, companyId: '' })).toThrow('company'));
+});
 
 describe('validateDeal (B-07, B-09)', () => {
   it('accepts a complete open deal', () => expect(() => validateDeal(base)).not.toThrow());
@@ -40,10 +45,17 @@ describe('filterDeals (L-02)', () => {
   it('by pipeline', () => expect(run({}, 'Staff augmentation').every((id) => all.find((d) => d.id === id).pipeline === 'Staff augmentation')).toBe(true));
   it('by search text across deal and company', () => expect(run({ q: 'northwind' })).toEqual(['d_nw_fpa', 'd_nw_aug']));
   it('by value range', () => expect(run({ minAmt: 400000, maxAmt: 500000 }).sort()).toEqual(['d_meridian_bi', 'd_nw_fpa']));
-  it('by industry via company', () => expect(run({ industry: 'Insurance' }).sort()).toEqual(['d_bright', 'd_bright_aug']));
+  it('by industry via company', () => expect(run({ industry: 'Energy & Utilities' }).sort()).toEqual(['d_bright', 'd_bright_aug']));
   it('by partner', () => expect(run({ partnerId: 'c_summit' })).toEqual(['d_summit_sub']));
   it('open only + close window', () => expect(run({ openOnly: true, closeTo: '2026-11-30' }).sort()).toEqual(['d_bright', 'd_nw_aug']));
-  it('by service line, as free text (contains)', () => expect(run({ serviceLine: 'science' }).sort()).toEqual(['d_bright_aug', 'd_meridian_bi', 'd_nw_aug']));
+  it('by service category or a single service', () => {
+    expect(run({ serviceLine: 'AI Realization' }).sort()).toEqual(['d_atlas_ops', 'd_cascade', 'd_vela']);
+    expect(run({ serviceLine: 'Operational AI › DSaaS' }).sort()).toEqual(['d_bright_aug', 'd_meridian_bi', 'd_nw_aug']);
+  });
+  it('close years start at 2025 and extend to the latest deal (A-04)', () => {
+    expect(dealYears([{ expectedClose: '2028-03-01' }], new Date('2026-11-18'))).toEqual(['2025', '2026', '2027', '2028']);
+    expect(dealYears([], new Date('2026-11-18'))).toEqual(['2025', '2026']);
+  });
   it('by close year (A-04)', () => expect(run({ closeYear: '2027' }).sort()).toEqual(['d_atlas', 'd_atlas_ops', 'd_cascade', 'd_summit_sub', 'd_vela']));
   it('mine = owner or collaborator', () => expect(run({ mine: 'u_russell' })).toContain('d_nw_fpa'));
   it('created from', () => expect(run({ createdFrom: '2026-11-01' })).toEqual(expect.arrayContaining(['d_vela'])));

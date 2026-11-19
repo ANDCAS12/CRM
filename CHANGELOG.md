@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.2.0 — Nov 18 review
+
+The ten changes from the Nov 18 review, against the Nov 18 Feature List and Build Brief.
+
+### Added
+- **Tasks page (E-08)** in the navigation: All and My tasks plus saved views; quick views all, due today, overdue and upcoming; filters for assigned to, task type, due date and linked record. Tasks have a type (call, email, to-do) and can link to a deal, company, contact or contract (E-02).
+- **Dashboards (L-12 to L-14)** replace Reports: default dashboards (Pipeline; Funnel and sources, V2; Revenue; Marketing return, V3), custom dashboards from scratch or a template, a report builder (object, measure, grouping, second grouping, filters, chart type: KPI, bar, line, table, funnel) with live preview, a reports library, dashboard filters (date range, owner, pipeline, source), a default dashboard per person, private or team sharing, and CSV export. Reports respect role rules and restricted fields.
+- Company fields: city, state, postal code, description and LinkedIn page, also read from HubSpot. "Fill with Claude" appears in the New company dialog, labelled V2 (C-08).
+- "Internal" deal source (B-08); sort deals by owner (B-03).
+- HubSpot task types; HubSpot industries mapped onto the 11 IK industries.
+
+### Changed
+- **Service lines** are a multi-select of category › service: Business Consulting, Operational AI (incl. DSaaS) and AI Realization.
+- **Industries** are the 11 IK industries.
+- **Every deal needs a company and a primary contact** (B-02). The HubSpot import skips deals missing either and says why, so owners link them first (M-01); an unknown contact email is created and flagged.
+- **Close years** start at 2025, with future years as deals are created and an All option (A-04, L-02).
+- **Saved views:** every list (deals, companies, contacts, contracts, tasks) opens on All and My, plus custom views. Preset views, including "Data leaders", are removed (L-03).
+- Saved data migrates automatically (schema v4): service lines and industries are mapped, unmatched values kept, tasks get a type, preset views removed.
+
+### Removed
+- The old Reports page and its chart helpers, replaced by Dashboards.
+
 ## 3.1.0 — Review against the build brief and walkthrough
 
 ### Added

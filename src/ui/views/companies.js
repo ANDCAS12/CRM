@@ -2,7 +2,7 @@
  * @file Companies index and company page (C-01..C-04), with HubSpot-style associations:
  * add existing contacts to a company and jump to the filtered contact list.
  */
-import { RELATIONSHIP_TYPES } from '../../config/constants.js';
+import { INDUSTRIES, RELATIONSHIP_TYPES } from '../../config/constants.js';
 import { canEdit } from '../../core/permissions.js';
 import { isOpen } from '../../core/deals.js';
 import { firstName, userName } from '../../core/lookups.js';
@@ -52,7 +52,7 @@ export function renderCompanies(root) {
     headerActions: `<button class="btn" id="lvExp">Export</button>${canImport ? '<button class="btn" id="impCo">Import CSV</button>' : ''}${canEdit(ctx.user, 'company', null) ? '<button class="btn pri" id="newCo">Create company</button>' : ''}`,
     quickFilters: [
       { field: 'relationship', label: 'Relationship', options: RELATIONSHIP_TYPES.map((r) => [r, r]) },
-      { field: 'industry', label: 'Industry', options: state().settings.industries.map((r) => [r, r]) },
+      { field: 'industry', label: 'Industry', options: INDUSTRIES.map((r) => [r, r]) },
       {
         field: 'ownerId',
         label: 'Owner',
@@ -192,6 +192,11 @@ export function renderCompanyRecord(root, id) {
       'ownerId',
       'industry',
       'subIndustry',
+      'city',
+      'state',
+      'postalCode',
+      'linkedinUrl',
+      'description',
       'hq',
       'employees',
       'revenueBand',
